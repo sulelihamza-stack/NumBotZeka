@@ -2,6 +2,7 @@ import streamlit as st
 import time
 import re
 import random
+from duckduckgo_search import DDGS
 from groq import Groq
 
 # --------------------------------------------------------------
@@ -12,294 +13,93 @@ GROQ_API_KEY = "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"
 st.set_page_config(page_title="NumBot - 7. Sınıf Eğitim Asistanı", page_icon="🤖", layout="wide")
 
 # --------------------------------------------------------------
-# SİYAH TEMA (DARK MODE)
+# SİYAH TEMA (CSS)
 # --------------------------------------------------------------
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:opsz@14..32&display=swap');
 
-* {
-    font-family: 'Inter', sans-serif;
-}
+* { font-family: 'Inter', sans-serif; }
 
-/* Ana arka plan - SİYAH */
-.stApp {
-    background: #000000 !important;
-}
+.stApp, [data-testid="stAppViewContainer"] { background: #000000 !important; }
 
-[data-testid="stAppViewContainer"] {
-    background: #000000 !important;
-}
+[data-testid="stSidebar"] { background: linear-gradient(180deg, #1a1a2e 0%, #0f0f1a 100%) !important; border-right: 1px solid #2a2a3e !important; }
+[data-testid="stSidebar"] * { color: #e0e0e0 !important; }
 
-[data-testid="stAppViewContainer"] > .main {
-    background: #000000 !important;
-}
+.sb-baslik { font-size: 1.2rem; font-weight: 700; padding: 15px 16px; text-align: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; margin: 10px; color: white !important; }
 
-/* Sidebar - Koyu gri */
-[data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #1a1a2e 0%, #0f0f1a 100%) !important;
-    border-right: 1px solid #2a2a3e !important;
-}
+[data-testid="stSidebar"] button { background: rgba(255,255,255,0.08) !important; border: 1px solid rgba(255,255,255,0.1) !important; color: #e0e0e0 !important; border-radius: 10px !important; transition: all 0.3s !important; }
+[data-testid="stSidebar"] button:hover { background: rgba(255,255,255,0.15) !important; transform: translateX(5px); }
 
-[data-testid="stSidebar"] * {
-    color: #e0e0e0 !important;
-}
+.ana-baslik { font-size: 2rem; font-weight: 700; text-align: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 20px 0 10px 0; }
+.ana-alt { font-size: 0.9rem; color: #888; text-align: center; margin-bottom: 30px; }
 
-.sb-baslik {
-    font-size: 1.2rem;
-    font-weight: 700;
-    padding: 15px 16px;
-    text-align: center;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    border-radius: 12px;
-    margin: 10px;
-    color: white !important;
-}
+.mesaj-kullanici { display: flex; justify-content: flex-end; margin: 15px 0; animation: fadeIn 0.5s; }
+.mesaj-kullanici span { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px 20px; border-radius: 25px 25px 5px 25px; max-width: 70%; box-shadow: 0 4px 15px rgba(102,126,234,0.3); font-size: 15px; line-height: 1.5; }
 
-/* Sidebar butonları */
-[data-testid="stSidebar"] button {
-    background: rgba(255,255,255,0.08) !important;
-    border: 1px solid rgba(255,255,255,0.1) !important;
-    color: #e0e0e0 !important;
-    border-radius: 10px !important;
-    transition: all 0.3s !important;
-}
+.mesaj-asistan { margin: 15px 0; animation: fadeIn 0.5s; }
+.asistan-tur { font-size: 11px; color: #888; margin-bottom: 5px; padding-left: 15px; font-weight: 600; letter-spacing: 1px; }
+.cevap-kutu { background: #1a1a2e; border-radius: 25px 25px 25px 5px; padding: 16px 22px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); line-height: 1.7; color: #e0e0e0; font-size: 15px; border: 1px solid #2a2a3e; }
 
-[data-testid="stSidebar"] button:hover {
-    background: rgba(255,255,255,0.15) !important;
-    transform: translateX(5px);
-}
+.kaynak-kart { background: #1a1a2e; border: 1px solid #2a2a3e; border-radius: 20px; padding: 6px 14px; font-size: 12px; text-decoration: none; margin-right: 8px; margin-bottom: 8px; display: inline-block; transition: all 0.3s; color: #aaa; font-weight: 500; }
+.kaynak-kart:hover { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; transform: translateY(-2px); }
 
-/* Ana başlık */
-.ana-baslik {
-    font-size: 2rem;
-    font-weight: 700;
-    text-align: center;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    margin: 20px 0 10px 0;
-}
+.uyari-kutu { background: rgba(255,200,100,0.1); border: 1px solid rgba(255,200,100,0.3); border-radius: 15px; padding: 10px 16px; margin-top: 12px; color: #ffd966; font-size: 13px; }
 
-.ana-alt {
-    font-size: 0.9rem;
-    color: #888;
-    text-align: center;
-    margin-bottom: 30px;
-}
+.isim-ekran { max-width: 450px; margin: 100px auto; background: #1a1a2e; border-radius: 30px; padding: 40px; text-align: center; box-shadow: 0 20px 40px rgba(0,0,0,0.5); border: 1px solid #2a2a3e; }
+.isim-ekran h2 { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
 
-/* Sohbet baloncukları */
-.mesaj-kullanici {
-    display: flex;
-    justify-content: flex-end;
-    margin: 15px 0;
-    animation: fadeIn 0.5s;
-}
+[data-testid="stChatInput"] { border: 2px solid #2a2a3e !important; border-radius: 30px !important; background: #1a1a2e !important; }
+[data-testid="stChatInput"] textarea { color: white !important; background: #1a1a2e !important; }
 
-.mesaj-kullanici span {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    padding: 12px 20px;
-    border-radius: 25px 25px 5px 25px;
-    max-width: 70%;
-    box-shadow: 0 4px 15px rgba(102,126,234,0.3);
-    font-size: 15px;
-    line-height: 1.5;
-}
-
-.mesaj-asistan {
-    margin: 15px 0;
-    animation: fadeIn 0.5s;
-}
-
-.asistan-tur {
-    font-size: 11px;
-    color: #888;
-    margin-bottom: 5px;
-    padding-left: 15px;
-    font-weight: 600;
-    letter-spacing: 1px;
-}
-
-.cevap-kutu {
-    background: #1a1a2e;
-    border-radius: 25px 25px 25px 5px;
-    padding: 16px 22px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-    line-height: 1.7;
-    color: #e0e0e0;
-    font-size: 15px;
-    border: 1px solid #2a2a3e;
-}
-
-/* Uyarı kutusu */
-.uyari-kutu {
-    background: rgba(255,200,100,0.1);
-    border: 1px solid rgba(255,200,100,0.3);
-    border-radius: 15px;
-    padding: 10px 16px;
-    margin-top: 12px;
-    color: #ffd966;
-    font-size: 13px;
-    font-weight: 500;
-}
-
-/* İsim ekranı */
-.isim-ekran {
-    max-width: 450px;
-    margin: 100px auto;
-    background: #1a1a2e;
-    border-radius: 30px;
-    padding: 40px;
-    text-align: center;
-    box-shadow: 0 20px 40px rgba(0,0,0,0.5);
-    animation: slideUp 0.6s;
-    border: 1px solid #2a2a3e;
-}
-
-.isim-ekran h2 {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    margin-bottom: 10px;
-}
-
-.isim-ekran p {
-    color: #aaa;
-}
-
-/* Chat input */
-[data-testid="stChatInput"] {
-    border: 2px solid #2a2a3e !important;
-    border-radius: 30px !important;
-    background: #1a1a2e !important;
-    color: white !important;
-}
-
-[data-testid="stChatInput"] textarea {
-    color: white !important;
-    background: #1a1a2e !important;
-}
-
-[data-testid="stChatInput"]:focus-within {
-    border-color: #667eea !important;
-    box-shadow: 0 0 0 3px rgba(102,126,234,0.2) !important;
-}
-
-/* Text input */
-.stTextInput input {
-    background: #1a1a2e !important;
-    border: 1px solid #2a2a3e !important;
-    color: white !important;
-    border-radius: 10px !important;
-}
-
-.stTextInput input:focus {
-    border-color: #667eea !important;
-}
-
-/* Animasyonlar */
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(10px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-@keyframes slideUp {
-    from {
-        opacity: 0;
-        transform: translateY(50px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-/* Scrollbar */
-::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-}
-
-::-webkit-scrollbar-track {
-    background: #1a1a2e;
-    border-radius: 10px;
-}
-
-::-webkit-scrollbar-thumb {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    border-radius: 10px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-    background: #764ba2;
-}
-
-/* Markdown ve diğer metinler */
-.markdown-text-container p, div, span {
-    color: #e0e0e0;
-}
-
-/* Info mesajları */
-.stAlert {
-    background: #1a1a2e !important;
-    border: 1px solid #2a2a3e !important;
-    color: #e0e0e0 !important;
-}
-
-/* Spinner */
-.stSpinner > div {
-    border-top-color: #667eea !important;
-}
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 </style>
 """, unsafe_allow_html=True)
 
 # --------------------------------------------------------------
-# DİYALOG SİSTEMİ (NumBot)
+# DİYALOG SİSTEMİ
 # --------------------------------------------------------------
 DIYALOG_KALIPLARI = {
     "selam": ["✨ Selam! Ben NumBot, sana nasıl yardımcı olabilirim?", "👋 Merhaba! NumBot olarak derslerinde sana destek olmak için buradayım.", "🌟 Hey! NumBot'la ders çalışmaya hazır mısın?"],
-    "nasilsin": ["💫 İyiyim, teşekkürler! Sen nasılsın? Dersler nasıl gidiyor?", "🎯 Harika hissediyorum! Senden naber?", "📚 Çok iyiyim, seni bekliyordum!"],
+    "nasilsin": ["💫 İyiyim, teşekkürler! Sen nasılsın?", "🎯 Harika hissediyorum! Senden naber?", "📚 Çok iyiyim, seni bekliyordum!"],
     "iyi": ["🎉 Ne güzel! O zaman bir ders sorusu sormaya ne dersin?", "⭐ Süper! Hadi öğrenmeye başlayalım.", "🚀 Harika! Enerjin yerindeyken ders çalışmak için en iyi zaman!"],
     "kötü": ["😔 Üzgünüm... Birlikte ders çalışırsak belki moralin düzelir.", "💪 Geçer, merak etme! Hadi bir soru çözelim.", "🌈 Her şey geçer! Öğrenmek insanı mutlu eder."],
     "teşekkür": ["🤗 Rica ederim! Başka sorun olursa buradayım.", "💖 Ne demek! Her zaman yardımcı olmaya hazırım.", "🎓 Estağfurullah! Öğrenmek için soru sormaya devam!"],
-    "kim": ["🤖 Ben NumBot! 7. sınıf derslerinde sana yardımcı olmak için tasarlanmış bir yapay zekayım.", "🧠 NumBot - 7. sınıf eğitim asistanın! Sorularını yanıtlamak için buradayım.", "✨ Ben NumBot, yapay zeka destekli eğitim asistanın. Matematik, fen, Türkçe ve daha fazlası!"],
-    "ne yapabilirsin": ["🔍 Sana 7. sınıf konularını anlatabilirim! Matematik, fen, Türkçe, İngilizce, sosyal bilgiler... Sorularını yanıtlayabilirim.", "📚 Her ders sorusunu cevaplayabilirim. Ayrıca örneklerle açıklarım. Denemek ister misin?"],
+    "kim": ["🤖 Ben NumBot! 7. sınıf derslerinde sana yardımcı olmak için tasarlanmış bir yapay zekayım.", "🧠 NumBot - 7. sınıf eğitim asistanın!", "✨ Ben NumBot, yapay zeka destekli eğitim asistanın."],
+    "ne yapabilirsin": ["🔍 Sana 7. sınıf konularını anlatabilirim! Matematik, fen, Türkçe, İngilizce, sosyal bilgiler... Sorularını yanıtlayabilirim.", "📚 Her ders sorusunu cevaplayabilirim. Ayrıca internette araştırıp kaynak ve video önerebilirim!"],
     "sıkıldım": ["😊 Sıkılmak normal! Hadi bir soru sor, belki ilginç bir şey keşfederiz.", "🎮 Ders çalışmak bazen sıkıcı gelebilir ama küçük bir soruyla başlayalım."],
     "default": ["💭 Ders konusunda bir sorun mu var? Matematik, fen, Türkçe, İngilizce veya sosyal bilgiler sorusu sorabilirsin.", "📖 Bir ders sorusu sormak ister misin? Sana yardımcı olmaktan mutluluk duyarım!"]
 }
 
 DIYALOG_ANAHTAR = {
     "selam": ["selam", "merhaba", "hey", "naber", "selamlar", "hello", "hi"],
-    "nasilsin": ["nasılsın", "nasılsınız", "iyi misin", "ne yapıyorsun", "naber"],
-    "iyi": ["iyiyim", "iyi", "güzel", "harika", "süper", "fena değil", "idare eder"],
-    "kötü": ["kötüyüm", "kötü", "berbat", "üzgün", "mutsuz", "keyifsiz"],
-    "teşekkür": ["teşekkür", "teşekkürler", "sağ ol", "mersi", "thanks", "eyvallah"],
-    "kim": ["kimsin", "nesin", "adın ne", "sensın", "sen kimsin"],
-    "ne yapabilirsin": ["ne yapabilirsin", "ne yaparsın", "nasıl yardım", "neler yaparsın", "yeteneklerin neler"],
+    "nasilsin": ["nasılsın", "nasılsınız", "iyi misin", "ne yapıyorsun"],
+    "iyi": ["iyiyim", "iyi", "güzel", "harika", "süper", "fena değil"],
+    "kötü": ["kötüyüm", "kötü", "berbat", "üzgün", "mutsuz"],
+    "teşekkür": ["teşekkür", "teşekkürler", "sağ ol", "mersi", "thanks"],
+    "kim": ["kimsin", "nesin", "adın ne", "sen kimsin"],
+    "ne yapabilirsin": ["ne yapabilirsin", "ne yaparsın", "nasıl yardım", "yeteneklerin neler"],
     "sıkıldım": ["sıkıldım", "bıktım", "canım sıkılıyor", "sıkıcı"]
 }
 
 EGITIM_ANAHTAR = [
-    "nedir", "nasıl", "ne zaman", "nerede", "açıkla", "anlat", "öğret", "çöz",
-    "formül", "hesapla", "farkı", "tanım", "örnek", "konu", "ders", "neden",
-    "matematik", "fen", "tarih", "coğrafya", "ingilizce", "türkçe", "sosyal",
-    "fotosentez", "mitoz", "denklem", "oran", "yüzde", "açı", "üçgen", "kare"
+    "zamir", "fiil", "isim", "sıfat", "zarf", "edat", "bağlaç", "noktalama", "yazım", "ek", "kök", "cümle",
+    "fotosentez", "mitoz", "mayoz", "solunum", "sindirim", "dolaşım", "hücre", "organel", "dna",
+    "denklem", "oran", "orantı", "yüzde", "faiz", "tam sayı", "rasyonel", "kesir", "cebir", "açı", "üçgen", "alan", "çevre",
+    "tarih", "coğrafya", "iklim", "harita", "nüfus", "vatandaşlık", "cumhuriyet",
+    "simple present", "present continuous", "past tense", "pronoun", "verb",
+    "nedir", "nasıl", "ne zaman", "nerede", "açıkla", "anlat", "öğret", "çöz", "tanım", "örnek", "konu", "ders"
 ]
 
 def mesaj_turu_tespit(mesaj: str) -> str:
     m = mesaj.lower().strip()
+    # Önce eğitim kontrolü (uzun cümle veya anahtar kelime varsa)
+    if any(k in m for k in EGITIM_ANAHTAR) or len(m.split()) >= 3:
+        return "egitim"
+    # Sonra diyalog kontrolü
     for tur, kelimeler in DIYALOG_ANAHTAR.items():
         if any(k in m for k in kelimeler):
             return f"diyalog:{tur}"
-    if any(k in m for k in EGITIM_ANAHTAR) or len(m.split()) >= 3:
-        return "egitim"
     return "diyalog:default"
 
 def diyalog_cevap(tur: str) -> str:
@@ -307,36 +107,98 @@ def diyalog_cevap(tur: str) -> str:
     return random.choice(DIYALOG_KALIPLARI.get(anahtar, DIYALOG_KALIPLARI["default"]))
 
 # --------------------------------------------------------------
-# GROQ İLE EĞİTİM CEVABI
+# KONU BAŞLIĞINI ÇIKAR (özet değil, tam konu adı)
 # --------------------------------------------------------------
-def groq_egitim_cevabi(soru: str) -> str:
+def konu_basligi_cikar(soru: str) -> str:
+    soru_lower = soru.lower()
+    # Türkçe konuları
+    for konu in ["zamir", "fiil", "isim", "sıfat", "zarf", "edat", "bağlaç", "noktalama"]:
+        if konu in soru_lower:
+            return konu.title() + " Konusu"
+    # Fen konuları
+    for konu in ["fotosentez", "mitoz", "mayoz", "solunum", "sindirim", "hücre", "dna"]:
+        if konu in soru_lower:
+            return konu.title()
+    # Matematik konuları
+    for konu in ["denklem", "oran", "orantı", "yüzde", "kesir", "açı", "üçgen"]:
+        if konu in soru_lower:
+            return konu.title()
+    # Yoksa ilk 30 karakter
+    return soru[:30] + ("..." if len(soru) > 30 else "")
+
+# --------------------------------------------------------------
+# DUCKDUCKGO ARAMA (kaynak bulmak için)
+# --------------------------------------------------------------
+@st.cache_data(ttl=3600, show_spinner=False)
+def duckduckgo_ara(sorgu: str, n: int = 5):
+    try:
+        with DDGS() as ddgs:
+            return list(ddgs.text(f"{sorgu} 7. sınıf", region="tr-tr", max_results=n))
+    except Exception as e:
+        st.warning(f"🔍 Arama hatası: {e}")
+        return []
+
+# --------------------------------------------------------------
+# GROQ İLE EĞİTİM CEVABI (KAYNAKLI)
+# --------------------------------------------------------------
+def groq_egitim_cevabi(soru: str):
+    # Önce DuckDuckGo'da ara (kaynak için)
+    kaynaklar = duckduckgo_ara(soru, n=4)
+    
+    # Arama sonuçlarını birleştir
+    arama_metni = ""
+    if kaynaklar:
+        for r in kaynaklar:
+            if r.get("body"):
+                arama_metni += r.get("body", "") + "\n\n"
+    
     try:
         client = Groq(api_key=GROQ_API_KEY)
         
         sistem_mesaji = """Sen NumBot'sun, 7. sınıf öğrencilerine yardım eden bir eğitim asistanısın.
-        Kendi bilgilerini kullanarak soruyu cevapla.
+        Verilen arama sonuçlarına göre soruyu cevapla.
         Cevabın şu özellikleri taşımalı:
         - 7. sınıf seviyesinde, anlaşılır Türkçe
         - 3-5 paragraf veya madde işaretleriyle
         - Örneklerle desteklenmiş
         - Müfredata uygun
-        - Gereksiz detaylardan kaçın
-        - Kendini NumBot olarak tanıtma, sadece cevap ver"""
+        - Gereksiz detaylardan kaçın"""
+        
+        if arama_metni:
+            kullanici_mesaji = f"Soru: {soru}\n\nİnternetten bulduğum bilgiler:\n{arama_metni[:3500]}"
+        else:
+            kullanici_mesaji = f"7. sınıf öğrencisine şu soruyu kendi bilgilerinle cevapla: {soru}"
         
         yanit = client.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=[
                 {"role": "system", "content": sistem_mesaji},
-                {"role": "user", "content": f"7. sınıf öğrencisine şu soruyu cevapla: {soru}"}
+                {"role": "user", "content": kullanici_mesaji}
             ],
-            max_tokens=600,
+            max_tokens=700,
             temperature=0.5
         )
         
-        return yanit.choices[0].message.content.strip()
+        cevap = yanit.choices[0].message.content.strip()
+        
+        # Kaynak linklerini ekle
+        if kaynaklar:
+            cevap += "\n\n---\n📚 **Kaynaklar:**\n"
+            for i, k in enumerate(kaynaklar[:3], 1):
+                if k.get("url"):
+                    cevap += f"{i}. [{k.get('title', 'Kaynak')}]({k['url']})\n"
+        
+        return cevap, kaynaklar
         
     except Exception as e:
-        return f"❌ Bağlantı hatası oluştu. Lütfen daha sonra tekrar dene.\n\nHata: {str(e)}"
+        return f"❌ Bağlantı hatası: {str(e)}\n\nLütfen daha sonra tekrar dene.", []
+
+# --------------------------------------------------------------
+# VİDEO LİNKİ OLUŞTUR
+# --------------------------------------------------------------
+def video_linki(soru: str) -> str:
+    query = soru.replace(" ", "+")
+    return f"https://www.youtube.com/results?search_query=7.+sınıf+{query}"
 
 # --------------------------------------------------------------
 # SOHBET YÖNETİMİ
@@ -391,11 +253,8 @@ with st.sidebar:
             if st.button("🗑️", key=f"del_{s['id']}"):
                 sohbeti_sil(s["id"])
     
-    st.markdown("---")
-    st.caption("🤖 NumBot v1.0 | 7. Sınıf Eğitim Asistanı")
-    
     if st.session_state.kullanici_adi:
-        st.markdown(f"<div style='margin-top: 10px; text-align: center; padding: 10px; background: rgba(102,126,234,0.1); border-radius: 15px; border: 1px solid rgba(102,126,234,0.3);'>👤 {st.session_state.kullanici_adi}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='margin-top: 20px; text-align: center; padding: 10px; background: rgba(102,126,234,0.1); border-radius: 15px;'>👤 {st.session_state.kullanici_adi}</div>", unsafe_allow_html=True)
 
 # --------------------------------------------------------------
 # İSİM SORMA EKRANI
@@ -412,8 +271,6 @@ if st.session_state.isim_bekleniyor:
                 st.session_state.sohbetler.append(yeni)
                 st.session_state.aktif_id = yeni["id"]
             st.rerun()
-        else:
-            st.warning("Lütfen adını yaz.")
     st.stop()
 
 # --------------------------------------------------------------
@@ -421,7 +278,7 @@ if st.session_state.isim_bekleniyor:
 # --------------------------------------------------------------
 ad = st.session_state.kullanici_adi or "Öğrenci"
 st.markdown(f'<div class="ana-baslik">🤖 Merhaba, {ad}!</div>', unsafe_allow_html=True)
-st.markdown('<div class="ana-alt">NumBot | 7. Sınıf Yapay Zeka Destekli Eğitim Asistanı</div>', unsafe_allow_html=True)
+st.markdown('<div class="ana-alt">NumBot | İnternette Araştırma Yapar | Kaynak ve Video Önerir</div>', unsafe_allow_html=True)
 
 sohbet = aktif_sohbet()
 
@@ -432,8 +289,22 @@ else:
         if m["rol"] == "kullanici":
             st.markdown(f'<div class="mesaj-kullanici"><span>{m["icerik"]}</span></div>', unsafe_allow_html=True)
         else:
-            tur_yazi = "📝 NumBot" if m.get("tur") == "egitim" else "💬 NumBot"
+            tur_yazi = "📝 NumBot (Eğitim)" if m.get("tur") == "egitim" else "💬 NumBot (Sohbet)"
             st.markdown(f'<div class="mesaj-asistan"><div class="asistan-tur">{tur_yazi}</div><div class="cevap-kutu">{m["icerik"]}</div>', unsafe_allow_html=True)
+            
+            # Kaynakları göster
+            if m.get("kaynaklar"):
+                src_html = '<div style="margin-top: 10px;">'
+                for i, k in enumerate(m["kaynaklar"][:3], 1):
+                    if k.get("url"):
+                        src_html += f'<a class="kaynak-kart" href="{k["url"]}" target="_blank">🔗 Kaynak {i}</a> '
+                src_html += '</div>'
+                st.markdown(src_html, unsafe_allow_html=True)
+            
+            # YouTube linki göster
+            if m.get("video_link"):
+                st.markdown(f'<div style="margin-top: 10px;"><a class="kaynak-kart" href="{m["video_link"]}" target="_blank" style="background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%); color: white;">🎬 YouTube\'da Ara</a></div>', unsafe_allow_html=True)
+            
             if m.get("uyari"):
                 st.markdown(f'<div class="uyari-kutu">⚠️ {m["uyari"]}</div>', unsafe_allow_html=True)
             st.markdown("</div>", unsafe_allow_html=True)
@@ -444,16 +315,21 @@ else:
         if msg:
             sohbet["mesajlar"].append({"rol": "kullanici", "icerik": msg})
             
+            # Başlığı güncelle - konu adını çıkar
             if sohbet["baslik"] == "Yeni Sohbet" and len(sohbet["mesajlar"]) == 1:
-                sohbet["baslik"] = msg[:30] + ("..." if len(msg) > 30 else "")
+                sohbet["baslik"] = konu_basligi_cikar(msg)
             
             tur = mesaj_turu_tespit(msg)
             
             if tur == "egitim":
                 st.session_state.disi_sayac = 0
-                with st.spinner("🤖 NumBot düşünüyor ve cevap hazırlıyor..."):
-                    cevap = groq_egitim_cevabi(msg)
-                sohbet["mesajlar"].append({"rol": "asistan", "icerik": cevap, "tur": "egitim"})
+                with st.spinner("🔍 NumBot internette araştırıyor ve cevap hazırlıyor..."):
+                    cevap, kaynaklar = groq_egitim_cevabi(msg)
+                    video_link = video_linki(msg)
+                sohbet["mesajlar"].append({
+                    "rol": "asistan", "icerik": cevap,
+                    "kaynaklar": kaynaklar, "video_link": video_link, "tur": "egitim"
+                })
             else:
                 st.session_state.disi_sayac += 1
                 cevap = diyalog_cevap(tur)
@@ -462,7 +338,7 @@ else:
                     uyari = random.choice([
                         "💡 Sohbet güzel ama biraz ders sorusu soralım mı?",
                         "📖 Ders dışına çıktık, hadi bir soru sor.",
-                        "🎯 NumBot olarak asıl görevim derslerinde sana yardımcı olmak. Bir ders sorusu sormaya ne dersin?"
+                        "🎯 NumBot olarak asıl görevim derslerinde sana yardımcı olmak!"
                     ])
                     st.session_state.disi_sayac = 0
                 sohbet["mesajlar"].append({"rol": "asistan", "icerik": cevap, "tur": "diyalog", "uyari": uyari})
