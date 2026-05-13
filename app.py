@@ -3,29 +3,19 @@ import requests
 import time
 import re
 import random
-import os
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
-import numpy as np
+from duckduckgo_search import DDGS
+from groq import Groq
 
-try:
-    from duckduckgo_search import DDGS
-except ImportError:
-    st.error("❌ 'duckduckgo-search' eksik. Terminal: pip install duckduckgo-search")
-    st.stop()
-
-try:
-    from groq import Groq
-except ImportError:
-    st.error("❌ 'groq' eksik. Terminal: pip install groq")
-    st.stop()
-
+# --------------------------------------------------------------
+# GROQ API ANAHTARI (doğrudan kod içinde)
+# --------------------------------------------------------------
 GROQ_API_KEY = "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"
 
 st.set_page_config(page_title="7. Sınıf Eğitim Asistanı", page_icon="📚", layout="wide")
 
-# Basit CSS (aynen)
+# --------------------------------------------------------------
+# BASİT TEMA (CSS)
+# --------------------------------------------------------------
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:opsz@14..32&display=swap');
@@ -46,7 +36,9 @@ html, body, [data-testid="stAppViewContainer"] { background-color: #ffffff; font
 </style>
 """, unsafe_allow_html=True)
 
-# Diyalog sistemleri (kısa)
+# --------------------------------------------------------------
+# DİYALOG SİSTEMİ (kısa)
+# --------------------------------------------------------------
 DIYALOG_KALIPLARI = {
     "selam": ["Selam! Nasılsın? Hangi konuda yardım edebilirim?", "Merhaba! Ders çalışmaya hazır mısın?"],
     "nasilsin": ["İyiyim, teşekkürler! Sen nasılsın?", "Gayet iyiyim! Sana nasıl yardımcı olabilirim?"],
@@ -66,14 +58,14 @@ DIYALOG_ANAHTAR = {
     "iyi geceler": ["iyi geceler","akşam"], "kim": ["kimsin","nesin"], "ne yapabilirsin": ["ne yapabilirsin"],
     "sıkıldım": ["sıkıldım","bıktım"]
 }
-EGITIM_ANAHTAR = ["nedir","nasıl","ne zaman","açıkla","anlat","formül","hesapla","çöz","konu","ders","matematik","fen","tarih"]
+EGITIM_ANAHTAR = ["nedir","nasıl","ne zaman","açıkla","anlat","formül","hesapla","çöz","konu","ders","matematik","fen","tarih","coğrafya","ingilizce","türkçe"]
 
 def mesaj_turu_tespit(mesaj: str) -> str:
     m = mesaj.lower()
     for tur, kelimeler in DIYALOG_ANAHTAR.items():
         if any(k in m for k in kelimeler):
             return f"diyalog:{tur}"
-    if any(k in m for k in EGITIM_ANAHTAR) or len(m.split())>=4:
+    if any(k in m for k in EGITIM_ANAHTAR) or len(m.split()) >= 4:
         return "egitim"
     return "diyalog:default"
 
@@ -81,16 +73,11 @@ def diyalog_cevap(tur: str) -> str:
     anahtar = tur.split(":")[1] if ":" in tur else "default"
     return random.choice(DIYALOG_KALIPLARI.get(anahtar, DIYALOG_KALIPLARI["default"]))
 
-# Kaynak güvenilirliği
-def guvenilirlik_puani(url: str) -> int:
-    u = url.lower()
-    if any(d in u for d in [".gov.tr", ".edu.tr", "meb", "eba"]): return 10
-    if any(d in u for d in ["wikipedia", "britannica", "khanacademy"]): return 8
-    return 1
-
-# Sadece DuckDuckGo arama özetlerini kullan (sayfa içi çekme yok)
+# --------------------------------------------------------------
+# ARAMA (sadece DuckDuckGo özetleri)
+# --------------------------------------------------------------
 @st.cache_data(ttl=3600, show_spinner=False)
-def ddg_ara_cached(sorgu: str, n: int = 8):
+def ddg_ara(sorgu: str, n: int = 8):
     try:
         with DDGS() as ddgs:
             return list(ddgs.text(sorgu, region="tr-tr", max_results=n))
@@ -98,30 +85,76 @@ def ddg_ara_cached(sorgu: str, n: int = 8):
         st.error(f"Arama hatası: {e}")
         return []
 
-# TF‑IDF özetleme (fallback)
-def tfidf_ozetle(soru, metin_parcalari):
+# --------------------------------------------------------------
+# BASİT ÖZETLEME (kelime eşleşmesi, scikit-learn yok)
+# --------------------------------------------------------------
+def basit_ozetle(soru: str, metin_parcalari: list, max_cumle: int = 5) -> str:
+    """Cümleleri sorudaki anahtar kelimelere göre puanlar, en iyileri seçer."""
     if not metin_parcalari:
         return "İlgili içerik bulunamadı."
-    # metin_parcalari her bir arama sonucunun body'si
-    cumleler = []
+    
+    # Tüm cümleleri topla
+    tum_cumleler = []
     for p in metin_parcalari:
-        cumleler += re.split(r'(?<=[.!?])\s+', p)
-    cumleler = [c.strip() for c in cumleler if len(c.strip())>40]
-    if not cumleler:
-        return "Detaylı bilgi yok."
-    docs = [soru] + cumleler
-    vec = TfidfVectorizer(stop_words="turkish", max_features=500)
-    tfidf = vec.fit_transform(docs)
-    sim = cosine_similarity(tfidf[0:1], tfidf[1:]).flatten()
-    idx = np.argsort(sim)[::-1][:5]
-    secilen = [cumleler[i] for i in idx if sim[i]>0.1]
-    return "\n\n".join(secilen[:4]) if secilen else cumleler[0]
+        cumleler = re.split(r'(?<=[.!?])\s+', p)
+        tum_cumleler.extend([c.strip() for c in cumleler if len(c.strip()) > 30])
+    
+    if not tum_cumleler:
+        return "Yeterli açıklama bulunamadı."
+    
+    # Sorudaki önemli kelimeleri al (stopwords basitçe)
+    stopwords = {"nedir", "nasıl", "ne", "bir", "ve", "ile", "bu", "şu", "o", "da", "de", "mi", "mı", "mu", "mü", "ki", "ise", "için", "gibi", "kadar", "üzere", "ancak", "fakat"}
+    soru_kelimeler = set(re.findall(r'\b[a-zçğıöşü]{3,}\b', soru.lower()))
+    soru_kelimeler -= stopwords
+    
+    if not soru_kelimeler:
+        # Hiç anahtar kelime yoksa ilk birkaç cümleyi al
+        return "\n\n".join(tum_cumleler[:max_cumle])
+    
+    # Her cümleyi puanla
+    puanli = []
+    for c in tum_cumleler:
+        puan = 0
+        c_lower = c.lower()
+        for kelime in soru_kelimeler:
+            if kelime in c_lower:
+                puan += 2
+        # Uzun cümlelere küçük bonus
+        if len(c) > 100:
+            puan += 1
+        # Çok kısa cümleleri cezalandır
+        if len(c) < 40:
+            puan -= 1
+        puanli.append((puan, c))
+    
+    # En yüksek puanlıları seç, puan aynıysa uzun olanı tercih et
+    puanli.sort(key=lambda x: (x[0], len(x[1])), reverse=True)
+    secilen = [c for p, c in puanli[:max_cumle] if p > 0]
+    
+    if not secilen:
+        secilen = tum_cumleler[:max_cumle]
+    
+    # Tekrarları azalt (ilk 60 karaktere göre)
+    goruldu = set()
+    benzersiz = []
+    for c in secilen:
+        if c[:60] not in goruldu:
+            goruldu.add(c[:60])
+            benzersiz.append(c)
+    
+    return "\n\n".join(benzersiz)
 
-# Groq sentez
-def groq_sentezle(soru, ham_metin):
+# --------------------------------------------------------------
+# GROQ SENTEZ
+# --------------------------------------------------------------
+def groq_sentezle(soru: str, ham_metin: str) -> str | None:
     try:
         client = Groq(api_key=GROQ_API_KEY)
-        sistem = "Sen 7. sınıf öğrencisine yardım eden bir eğitim asistanısın. Verilen metne göre soruyu cevapla, sade ve anlaşılır Türkçe kullan, 3-5 paragraf veya madde halinde yaz. Kaynak adı yazma."
+        sistem = (
+            "Sen 7. sınıf öğrencisine yardım eden bir eğitim asistanısın. "
+            "Verilen metne göre soruyu cevapla. Sade ve anlaşılır Türkçe kullan, 3-5 paragraf veya madde halinde yaz. "
+            "Kaynak adı yazma, gereksiz detaylardan kaçın."
+        )
         yanit = client.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=[
@@ -133,11 +166,13 @@ def groq_sentezle(soru, ham_metin):
         )
         return yanit.choices[0].message.content.strip()
     except Exception as e:
-        st.warning(f"Groq hatası: {e}")
+        st.warning(f"Groq hatası: {e} → Basit özetleme kullanılıyor.")
         return None
 
-# Görsel ve video (opsiyonel)
-def konu_icin_gorsel(soru):
+# --------------------------------------------------------------
+# GÖRSEL / VİDEO
+# --------------------------------------------------------------
+def konu_icin_gorsel(soru: str) -> str | None:
     try:
         with DDGS() as ddgs:
             res = list(ddgs.images(soru, max_results=1))
@@ -145,33 +180,47 @@ def konu_icin_gorsel(soru):
     except:
         return None
 
-def konu_icin_video_linki(soru):
-    return f"https://www.youtube.com/results?search_query=7.+sınıf+{soru.replace(' ','+')}"
+def konu_icin_video_linki(soru: str) -> str:
+    return f"https://www.youtube.com/results?search_query=7.+sınıf+{soru.replace(' ', '+')}"
 
-# Ana cevap üretici (sadece arama özetleri)
-def cevap_olustur(soru):
-    sonuclar = ddg_ara_cached(f"{soru} 7. sınıf", n=8)
+# --------------------------------------------------------------
+# ANA CEVAP ÜRETİCİ
+# --------------------------------------------------------------
+def cevap_olustur(soru: str):
+    # 1. Ara
+    sonuclar = ddg_ara(f"{soru} 7. sınıf", n=8)
     if not sonuclar:
         return "Üzgünüm, internette bir şey bulamadım.", [], None, ""
-    # Özet metinleri topla
+    
+    # 2. Özetleri topla
     ozetler = [r.get("body", "") for r in sonuclar if r.get("body")]
-    # Kaynakları hazırla
+    if not ozetler:
+        return "Arama sonucu metin yok.", [], None, ""
+    
+    # 3. Kaynakları hazırla (güvenilirlik yok, sadece URL)
     kaynaklar = []
-    for r in sonuclar[:6]:
+    for r in sonuclar[:5]:
         url = r.get("href")
         if url:
-            kaynaklar.append({"url": url, "baslik": r.get("title", url), "guven": guvenilirlik_puani(url)})
-    kaynaklar.sort(key=lambda x: x["guven"], reverse=True)
-    if not ozetler:
-        return "Arama sonucu metin yok.", kaynaklar[:5], None, ""
+            kaynaklar.append({"url": url, "baslik": r.get("title", url)})
+    
+    # 4. Ham metni birleştir
     ham_metin = "\n\n".join(ozetler)
-    # Groq dene
-    sentez = groq_sentezle(soru, ham_metin)
-    if not sentez:
-        sentez = tfidf_ozetle(soru, ozetler)
-    return sentez, kaynaklar[:5], konu_icin_gorsel(soru), konu_icin_video_linki(soru)
+    
+    # 5. Önce Groq'u dene
+    cevap = groq_sentezle(soru, ham_metin)
+    if not cevap:
+        cevap = basit_ozetle(soru, ozetler)
+    
+    # 6. Görsel ve video
+    gorsel = konu_icin_gorsel(soru)
+    video = konu_icin_video_linki(soru)
+    
+    return cevap, kaynaklar, gorsel, video
 
-# Session state (JSON yok)
+# --------------------------------------------------------------
+# SOHBET YÖNETİMİ (JSON YOK, SADECE SESSION STATE)
+# --------------------------------------------------------------
 if "kullanici_adi" not in st.session_state:
     st.session_state.kullanici_adi = None
 if "isim_bekleniyor" not in st.session_state:
@@ -183,7 +232,7 @@ if "aktif_id" not in st.session_state:
 if "disi_sayac" not in st.session_state:
     st.session_state.disi_sayac = 0
 
-def yeni_sohbet(adi):
+def yeni_sohbet(adi: str):
     return {"id": int(time.time()*1000), "baslik": adi, "mesajlar": []}
 
 def aktif_sohbet():
@@ -192,7 +241,9 @@ def aktif_sohbet():
             return s
     return None
 
-# Sidebar
+# --------------------------------------------------------------
+# SIDEBAR
+# --------------------------------------------------------------
 with st.sidebar:
     st.markdown('<div class="sb-baslik">💬 Sohbetler</div>', unsafe_allow_html=True)
     if st.button("➕ Yeni Sohbet", use_container_width=True):
@@ -208,7 +259,9 @@ with st.sidebar:
     if st.session_state.kullanici_adi:
         st.markdown(f"👤 {st.session_state.kullanici_adi}")
 
-# İsim sorma
+# --------------------------------------------------------------
+# İSİM SORMA EKRANI
+# --------------------------------------------------------------
 if st.session_state.isim_bekleniyor:
     st.markdown('<div class="isim-ekran"><h2>Hoş Geldin!</h2><p>Adını öğrenebilir miyim?</p></div>', unsafe_allow_html=True)
     isim = st.text_input("Adın:", placeholder="Adını yaz...", label_visibility="collapsed")
@@ -223,20 +276,24 @@ if st.session_state.isim_bekleniyor:
             st.rerun()
     st.stop()
 
-# Ana alan
+# --------------------------------------------------------------
+# ANA ALAN
+# --------------------------------------------------------------
 ad = st.session_state.kullanici_adi or "Öğrenci"
 st.markdown(f'<div class="ana-baslik">Merhaba, {ad}!</div>', unsafe_allow_html=True)
-st.markdown('<div class="ana-alt">7. Sınıf Eğitim Asistanı (Sadece arama özetleri, hızlı ve hafif)</div>', unsafe_allow_html=True)
+st.markdown('<div class="ana-alt">7. Sınıf Eğitim Asistanı (Hızlı, Hafif, Scikit-learn'süz)</div>', unsafe_allow_html=True)
 
 sohbet = aktif_sohbet()
 if sohbet is None:
     st.info("Yeni sohbet oluşturmak için sol menüdeki ➕ butonuna tıklayın.")
 else:
+    # Geçmiş mesajları göster
     for m in sohbet["mesajlar"]:
         if m["rol"] == "kullanici":
             st.markdown(f'<div class="mesaj-kullanici"><span>{m["icerik"]}</span></div>', unsafe_allow_html=True)
         else:
-            st.markdown(f'<div class="mesaj-asistan"><div class="asistan-tur">{"Cevap" if m.get("tur")=="egitim" else "Sohbet"}</div><div class="cevap-kutu">{m["icerik"]}</div>', unsafe_allow_html=True)
+            tur_yazi = "Cevap" if m.get("tur") == "egitim" else "Sohbet"
+            st.markdown(f'<div class="mesaj-asistan"><div class="asistan-tur">{tur_yazi}</div><div class="cevap-kutu">{m["icerik"]}</div>', unsafe_allow_html=True)
             if m.get("kaynaklar"):
                 src_html = '<div style="margin-top:6px">'
                 for i, k in enumerate(m["kaynaklar"], 1):
@@ -250,20 +307,27 @@ else:
             if m.get("uyari"):
                 st.markdown(f'<div class="uyari-kutu">⚠ {m["uyari"]}</div>', unsafe_allow_html=True)
             st.markdown("</div>", unsafe_allow_html=True)
-
+    
+    # Kullanıcı girdisi
     girdi = st.chat_input(f"Sorunu yaz, {ad}...")
     if girdi:
         msg = girdi.strip()
         if msg:
             sohbet["mesajlar"].append({"rol": "kullanici", "icerik": msg})
+            # Başlık güncelle (ilk mesaj)
             if sohbet["baslik"] == "Yeni Sohbet" and len(sohbet["mesajlar"]) == 1:
-                sohbet["baslik"] = msg[:30] + ("..." if len(msg)>30 else "")
+                sohbet["baslik"] = msg[:30] + ("..." if len(msg) > 30 else "")
+            # Tür tespiti
             tur = mesaj_turu_tespit(msg)
             if tur == "egitim":
                 st.session_state.disi_sayac = 0
                 with st.spinner("Araştırılıyor..."):
                     cevap, kaynaklar, gorsel, vlink = cevap_olustur(msg)
-                sohbet["mesajlar"].append({"rol": "asistan", "icerik": cevap, "kaynaklar": kaynaklar, "tur": "egitim", "gorsel": gorsel, "video_link": vlink})
+                sohbet["mesajlar"].append({
+                    "rol": "asistan", "icerik": cevap,
+                    "kaynaklar": kaynaklar, "tur": "egitim",
+                    "gorsel": gorsel, "video_link": vlink
+                })
             else:
                 st.session_state.disi_sayac += 1
                 cevap = diyalog_cevap(tur)
@@ -271,5 +335,8 @@ else:
                 if st.session_state.disi_sayac >= 3:
                     uyari = random.choice(["Sohbet güzel ama biraz ders sorusu soralım mı?", "Ders dışına çıktık, hadi bir soru sor."])
                     st.session_state.disi_sayac = 0
-                sohbet["mesajlar"].append({"rol": "asistan", "icerik": cevap, "tur": "diyalog", "uyari": uyari})
+                sohbet["mesajlar"].append({
+                    "rol": "asistan", "icerik": cevap,
+                    "tur": "diyalog", "uyari": uyari
+                })
             st.rerun()
