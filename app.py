@@ -119,22 +119,19 @@ def basit_ozetle(soru: str, metin_parcalari: list, max_cumle: int = 5) -> str:
         for kelime in soru_kelimeler:
             if kelime in c_lower:
                 puan += 2
-        # Uzun cümlelere küçük bonus
         if len(c) > 100:
             puan += 1
-        # Çok kısa cümleleri cezalandır
         if len(c) < 40:
             puan -= 1
         puanli.append((puan, c))
     
-    # En yüksek puanlıları seç, puan aynıysa uzun olanı tercih et
     puanli.sort(key=lambda x: (x[0], len(x[1])), reverse=True)
     secilen = [c for p, c in puanli[:max_cumle] if p > 0]
     
     if not secilen:
         secilen = tum_cumleler[:max_cumle]
     
-    # Tekrarları azalt (ilk 60 karaktere göre)
+    # Tekrarları azalt
     goruldu = set()
     benzersiz = []
     for c in secilen:
@@ -187,32 +184,25 @@ def konu_icin_video_linki(soru: str) -> str:
 # ANA CEVAP ÜRETİCİ
 # --------------------------------------------------------------
 def cevap_olustur(soru: str):
-    # 1. Ara
     sonuclar = ddg_ara(f"{soru} 7. sınıf", n=8)
     if not sonuclar:
         return "Üzgünüm, internette bir şey bulamadım.", [], None, ""
     
-    # 2. Özetleri topla
     ozetler = [r.get("body", "") for r in sonuclar if r.get("body")]
     if not ozetler:
         return "Arama sonucu metin yok.", [], None, ""
     
-    # 3. Kaynakları hazırla (güvenilirlik yok, sadece URL)
     kaynaklar = []
     for r in sonuclar[:5]:
         url = r.get("href")
         if url:
             kaynaklar.append({"url": url, "baslik": r.get("title", url)})
     
-    # 4. Ham metni birleştir
     ham_metin = "\n\n".join(ozetler)
-    
-    # 5. Önce Groq'u dene
     cevap = groq_sentezle(soru, ham_metin)
     if not cevap:
         cevap = basit_ozetle(soru, ozetler)
     
-    # 6. Görsel ve video
     gorsel = konu_icin_gorsel(soru)
     video = konu_icin_video_linki(soru)
     
@@ -281,13 +271,12 @@ if st.session_state.isim_bekleniyor:
 # --------------------------------------------------------------
 ad = st.session_state.kullanici_adi or "Öğrenci"
 st.markdown(f'<div class="ana-baslik">Merhaba, {ad}!</div>', unsafe_allow_html=True)
-st.markdown('<div class="ana-alt">7. Sınıf Eğitim Asistanı (Hızlı, Hafif, Scikit-learn'süz)</div>', unsafe_allow_html=True)
+st.markdown('<div class="ana-alt">7. Sınıf Eğitim Asistanı (Hızlı, Hafif, Scikit-learn\'süz)</div>', unsafe_allow_html=True)
 
 sohbet = aktif_sohbet()
 if sohbet is None:
     st.info("Yeni sohbet oluşturmak için sol menüdeki ➕ butonuna tıklayın.")
 else:
-    # Geçmiş mesajları göster
     for m in sohbet["mesajlar"]:
         if m["rol"] == "kullanici":
             st.markdown(f'<div class="mesaj-kullanici"><span>{m["icerik"]}</span></div>', unsafe_allow_html=True)
@@ -308,16 +297,13 @@ else:
                 st.markdown(f'<div class="uyari-kutu">⚠ {m["uyari"]}</div>', unsafe_allow_html=True)
             st.markdown("</div>", unsafe_allow_html=True)
     
-    # Kullanıcı girdisi
     girdi = st.chat_input(f"Sorunu yaz, {ad}...")
     if girdi:
         msg = girdi.strip()
         if msg:
             sohbet["mesajlar"].append({"rol": "kullanici", "icerik": msg})
-            # Başlık güncelle (ilk mesaj)
             if sohbet["baslik"] == "Yeni Sohbet" and len(sohbet["mesajlar"]) == 1:
                 sohbet["baslik"] = msg[:30] + ("..." if len(msg) > 30 else "")
-            # Tür tespiti
             tur = mesaj_turu_tespit(msg)
             if tur == "egitim":
                 st.session_state.disi_sayac = 0
