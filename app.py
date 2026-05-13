@@ -1,9 +1,7 @@
 import streamlit as st
-import requests
 import time
 import re
 import random
-from duckduckgo_search import DDGS
 from groq import Groq
 
 # --------------------------------------------------------------
@@ -11,7 +9,7 @@ from groq import Groq
 # --------------------------------------------------------------
 GROQ_API_KEY = "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"
 
-st.set_page_config(page_title="7. Sınıf Eğitim Asistanı", page_icon="📚", layout="wide")
+st.set_page_config(page_title="NumBot - 7. Sınıf Eğitim Asistanı", page_icon="🤖", layout="wide")
 
 # --------------------------------------------------------------
 # SİYAH TEMA (DARK MODE)
@@ -134,30 +132,6 @@ st.markdown("""
     border: 1px solid #2a2a3e;
 }
 
-/* Kaynak linkleri */
-.kaynak-kart {
-    background: #1a1a2e;
-    border: 1px solid #2a2a3e;
-    border-radius: 20px;
-    padding: 6px 14px;
-    font-size: 12px;
-    text-decoration: none;
-    margin-right: 8px;
-    margin-bottom: 8px;
-    display: inline-block;
-    transition: all 0.3s;
-    color: #aaa;
-    font-weight: 500;
-}
-
-.kaynak-kart:hover {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 10px rgba(102,126,234,0.3);
-    border-color: transparent;
-}
-
 /* Uyarı kutusu */
 .uyari-kutu {
     background: rgba(255,200,100,0.1);
@@ -168,31 +142,6 @@ st.markdown("""
     color: #ffd966;
     font-size: 13px;
     font-weight: 500;
-}
-
-/* Görsel ve video */
-.goruntu-oneri img {
-    border-radius: 15px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-    margin-top: 10px;
-    border: 1px solid #2a2a3e;
-}
-
-.video-oneri a {
-    background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
-    padding: 8px 16px;
-    border-radius: 25px;
-    text-decoration: none;
-    font-size: 13px;
-    color: white;
-    display: inline-block;
-    margin-top: 10px;
-    transition: all 0.3s;
-}
-
-.video-oneri a:hover {
-    transform: scale(1.05);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
 }
 
 /* İsim ekranı */
@@ -272,7 +221,7 @@ st.markdown("""
     }
 }
 
-/* Scrollbar - Siyah tema için */
+/* Scrollbar */
 ::-webkit-scrollbar {
     width: 8px;
     height: 8px;
@@ -297,7 +246,7 @@ st.markdown("""
     color: #e0e0e0;
 }
 
-/* Info ve warning mesajları */
+/* Info mesajları */
 .stAlert {
     background: #1a1a2e !important;
     border: 1px solid #2a2a3e !important;
@@ -312,35 +261,36 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --------------------------------------------------------------
-# DİYALOG SİSTEMİ
+# DİYALOG SİSTEMİ (NumBot)
 # --------------------------------------------------------------
 DIYALOG_KALIPLARI = {
-    "selam": ["✨ Selam! Nasılsın? Bugün hangi konuyu çalışmak istiyorsun?", "👋 Merhaba! Sana nasıl yardımcı olabilirim?", "🌟 Hey! Derslerine yardım etmek için buradayım!"],
+    "selam": ["✨ Selam! Ben NumBot, sana nasıl yardımcı olabilirim?", "👋 Merhaba! NumBot olarak derslerinde sana destek olmak için buradayım.", "🌟 Hey! NumBot'la ders çalışmaya hazır mısın?"],
     "nasilsin": ["💫 İyiyim, teşekkürler! Sen nasılsın? Dersler nasıl gidiyor?", "🎯 Harika hissediyorum! Senden naber?", "📚 Çok iyiyim, seni bekliyordum!"],
     "iyi": ["🎉 Ne güzel! O zaman bir ders sorusu sormaya ne dersin?", "⭐ Süper! Hadi öğrenmeye başlayalım.", "🚀 Harika! Enerjin yerindeyken ders çalışmak için en iyi zaman!"],
     "kötü": ["😔 Üzgünüm... Birlikte ders çalışırsak belki moralin düzelir.", "💪 Geçer, merak etme! Hadi bir soru çözelim.", "🌈 Her şey geçer! Öğrenmek insanı mutlu eder."],
     "teşekkür": ["🤗 Rica ederim! Başka sorun olursa buradayım.", "💖 Ne demek! Her zaman yardımcı olmaya hazırım.", "🎓 Estağfurullah! Öğrenmek için soru sormaya devam!"],
-    "kim": ["🤖 Ben 7. Sınıf Eğitim Asistanı'yım!", "🧠 Ben NumNum - 7. sınıf derslerinde sana destek olmak için buradayım!", "✨ Yapay zeka asistanıyım, sorularını cevaplıyorum."],
-    "ne yapabilirsin": ["🔍 Sana 7. sınıf konularını anlatabilirim, sorularını internette araştırıp cevaplayabilirim!", "🌐 İnternetten araştırma yapıp sana özet bir cevap hazırlarım."],
+    "kim": ["🤖 Ben NumBot! 7. sınıf derslerinde sana yardımcı olmak için tasarlanmış bir yapay zekayım.", "🧠 NumBot - 7. sınıf eğitim asistanın! Sorularını yanıtlamak için buradayım.", "✨ Ben NumBot, yapay zeka destekli eğitim asistanın. Matematik, fen, Türkçe ve daha fazlası!"],
+    "ne yapabilirsin": ["🔍 Sana 7. sınıf konularını anlatabilirim! Matematik, fen, Türkçe, İngilizce, sosyal bilgiler... Sorularını yanıtlayabilirim.", "📚 Her ders sorusunu cevaplayabilirim. Ayrıca örneklerle açıklarım. Denemek ister misin?"],
     "sıkıldım": ["😊 Sıkılmak normal! Hadi bir soru sor, belki ilginç bir şey keşfederiz.", "🎮 Ders çalışmak bazen sıkıcı gelebilir ama küçük bir soruyla başlayalım."],
     "default": ["💭 Ders konusunda bir sorun mu var? Matematik, fen, Türkçe, İngilizce veya sosyal bilgiler sorusu sorabilirsin.", "📖 Bir ders sorusu sormak ister misin? Sana yardımcı olmaktan mutluluk duyarım!"]
 }
 
 DIYALOG_ANAHTAR = {
-    "selam": ["selam", "merhaba", "hey", "naber", "selamlar"],
-    "nasilsin": ["nasılsın", "nasılsınız", "iyi misin", "ne yapıyorsun"],
-    "iyi": ["iyiyim", "iyi", "güzel", "harika", "süper", "fena değil"],
-    "kötü": ["kötüyüm", "kötü", "berbat", "üzgün", "mutsuz"],
-    "teşekkür": ["teşekkür", "sağ ol", "mersi", "thanks"],
-    "kim": ["kimsin", "nesin", "adın ne"],
-    "ne yapabilirsin": ["ne yapabilirsin", "ne yaparsın", "nasıl yardım"],
-    "sıkıldım": ["sıkıldım", "bıktım", "canım sıkılıyor"]
+    "selam": ["selam", "merhaba", "hey", "naber", "selamlar", "hello", "hi"],
+    "nasilsin": ["nasılsın", "nasılsınız", "iyi misin", "ne yapıyorsun", "naber"],
+    "iyi": ["iyiyim", "iyi", "güzel", "harika", "süper", "fena değil", "idare eder"],
+    "kötü": ["kötüyüm", "kötü", "berbat", "üzgün", "mutsuz", "keyifsiz"],
+    "teşekkür": ["teşekkür", "teşekkürler", "sağ ol", "mersi", "thanks", "eyvallah"],
+    "kim": ["kimsin", "nesin", "adın ne", "sensın", "sen kimsin"],
+    "ne yapabilirsin": ["ne yapabilirsin", "ne yaparsın", "nasıl yardım", "neler yaparsın", "yeteneklerin neler"],
+    "sıkıldım": ["sıkıldım", "bıktım", "canım sıkılıyor", "sıkıcı"]
 }
 
 EGITIM_ANAHTAR = [
-    "nedir", "nasıl", "ne zaman", "nerede", "açıkla", "anlat", "öğret",
-    "formül", "hesapla", "çöz", "farkı", "tanım", "örnek", "konu",
-    "ders", "matematik", "fen", "tarih", "coğrafya", "ingilizce", "türkçe"
+    "nedir", "nasıl", "ne zaman", "nerede", "açıkla", "anlat", "öğret", "çöz",
+    "formül", "hesapla", "farkı", "tanım", "örnek", "konu", "ders", "neden",
+    "matematik", "fen", "tarih", "coğrafya", "ingilizce", "türkçe", "sosyal",
+    "fotosentez", "mitoz", "denklem", "oran", "yüzde", "açı", "üçgen", "kare"
 ]
 
 def mesaj_turu_tespit(mesaj: str) -> str:
@@ -348,7 +298,7 @@ def mesaj_turu_tespit(mesaj: str) -> str:
     for tur, kelimeler in DIYALOG_ANAHTAR.items():
         if any(k in m for k in kelimeler):
             return f"diyalog:{tur}"
-    if any(k in m for k in EGITIM_ANAHTAR) or len(m.split()) >= 4:
+    if any(k in m for k in EGITIM_ANAHTAR) or len(m.split()) >= 3:
         return "egitim"
     return "diyalog:default"
 
@@ -357,59 +307,36 @@ def diyalog_cevap(tur: str) -> str:
     return random.choice(DIYALOG_KALIPLARI.get(anahtar, DIYALOG_KALIPLARI["default"]))
 
 # --------------------------------------------------------------
-# ARAMA VE AI CEVAP
+# GROQ İLE EĞİTİM CEVABI
 # --------------------------------------------------------------
-@st.cache_data(ttl=3600, show_spinner=False)
-def duckduckgo_ara(sorgu: str, n: int = 5):
+def groq_egitim_cevabi(soru: str) -> str:
     try:
-        with DDGS() as ddgs:
-            return list(ddgs.text(sorgu, region="tr-tr", max_results=n))
-    except Exception as e:
-        st.error(f"🔍 Arama hatası: {e}")
-        return []
-
-def groq_ile_cevapla(soru: str) -> str:
-    try:
-        sonuclar = duckduckgo_ara(f"{soru} 7. sınıf", n=5)
-        
-        if not sonuclar:
-            return "Üzgünüm, internette bu konuda bir şey bulamadım. Farklı bir soru sormak ister misin?"
-        
-        arama_metni = "\n\n".join([r.get("body", "") for r in sonuclar if r.get("body")])
-        
         client = Groq(api_key=GROQ_API_KEY)
         
-        sistem_mesaji = """Sen 7. sınıf öğrencilerine yardım eden bir eğitim asistanısın. 
-        Verilen arama sonuçlarına göre soruyu cevapla. 
+        sistem_mesaji = """Sen NumBot'sun, 7. sınıf öğrencilerine yardım eden bir eğitim asistanısın.
+        Kendi bilgilerini kullanarak soruyu cevapla.
         Cevabın şu özellikleri taşımalı:
         - 7. sınıf seviyesinde, anlaşılır Türkçe
         - 3-5 paragraf veya madde işaretleriyle
         - Örneklerle desteklenmiş
-        - Kaynak veya site adı yazma
-        - Gereksiz detaylardan kaçın"""
+        - Müfredata uygun
+        - Gereksiz detaylardan kaçın
+        - Kendini NumBot olarak tanıtma, sadece cevap ver"""
         
         yanit = client.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=[
                 {"role": "system", "content": sistem_mesaji},
-                {"role": "user", "content": f"Soru: {soru}\n\nArama sonuçları:\n{arama_metni[:3500]}"}
+                {"role": "user", "content": f"7. sınıf öğrencisine şu soruyu cevapla: {soru}"}
             ],
             max_tokens=600,
-            temperature=0.4
+            temperature=0.5
         )
         
-        cevap = yanit.choices[0].message.content.strip()
-        
-        if sonuclar:
-            cevap += "\n\n---\n📚 **Kaynaklar:**\n"
-            for i, s in enumerate(sonuclar[:3], 1):
-                if s.get("href"):
-                    cevap += f"{i}. [{s.get('title', 'Kaynak')}]({s['href']})\n"
-        
-        return cevap
+        return yanit.choices[0].message.content.strip()
         
     except Exception as e:
-        return f"❌ Bir hata oluştu: {str(e)}\n\nLütfen daha sonra tekrar dene veya farklı bir soru sor."
+        return f"❌ Bağlantı hatası oluştu. Lütfen daha sonra tekrar dene.\n\nHata: {str(e)}"
 
 # --------------------------------------------------------------
 # SOHBET YÖNETİMİ
@@ -464,14 +391,17 @@ with st.sidebar:
             if st.button("🗑️", key=f"del_{s['id']}"):
                 sohbeti_sil(s["id"])
     
+    st.markdown("---")
+    st.caption("🤖 NumBot v1.0 | 7. Sınıf Eğitim Asistanı")
+    
     if st.session_state.kullanici_adi:
-        st.markdown(f"<div style='margin-top: 30px; text-align: center; padding: 15px; background: rgba(102,126,234,0.1); border-radius: 15px; border: 1px solid rgba(102,126,234,0.3);'>👤 {st.session_state.kullanici_adi}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='margin-top: 10px; text-align: center; padding: 10px; background: rgba(102,126,234,0.1); border-radius: 15px; border: 1px solid rgba(102,126,234,0.3);'>👤 {st.session_state.kullanici_adi}</div>", unsafe_allow_html=True)
 
 # --------------------------------------------------------------
 # İSİM SORMA EKRANI
 # --------------------------------------------------------------
 if st.session_state.isim_bekleniyor:
-    st.markdown('<div class="isim-ekran"><h2>✨ Hoş Geldin!</h2><p>Sana nasıl hitap etmemi istersin?</p></div>', unsafe_allow_html=True)
+    st.markdown('<div class="isim-ekran"><h2>🤖 Hoş Geldin!</h2><p>Ben NumBot, sana nasıl hitap edebilirim?</p></div>', unsafe_allow_html=True)
     isim = st.text_input("", placeholder="Adını yaz...", label_visibility="collapsed")
     if st.button("🎉 Başlayalım!", use_container_width=True):
         if isim.strip():
@@ -482,14 +412,16 @@ if st.session_state.isim_bekleniyor:
                 st.session_state.sohbetler.append(yeni)
                 st.session_state.aktif_id = yeni["id"]
             st.rerun()
+        else:
+            st.warning("Lütfen adını yaz.")
     st.stop()
 
 # --------------------------------------------------------------
 # ANA ALAN
 # --------------------------------------------------------------
 ad = st.session_state.kullanici_adi or "Öğrenci"
-st.markdown(f'<div class="ana-baslik">📚 Merhaba, {ad}!</div>', unsafe_allow_html=True)
-st.markdown('<div class="ana-alt">7. Sınıf Eğitim Asistanı | Groq AI ile İnternette Arama Yapar</div>', unsafe_allow_html=True)
+st.markdown(f'<div class="ana-baslik">🤖 Merhaba, {ad}!</div>', unsafe_allow_html=True)
+st.markdown('<div class="ana-alt">NumBot | 7. Sınıf Yapay Zeka Destekli Eğitim Asistanı</div>', unsafe_allow_html=True)
 
 sohbet = aktif_sohbet()
 
@@ -500,7 +432,7 @@ else:
         if m["rol"] == "kullanici":
             st.markdown(f'<div class="mesaj-kullanici"><span>{m["icerik"]}</span></div>', unsafe_allow_html=True)
         else:
-            tur_yazi = "📝 AI Cevabı" if m.get("tur") == "egitim" else "💬 Sohbet"
+            tur_yazi = "📝 NumBot" if m.get("tur") == "egitim" else "💬 NumBot"
             st.markdown(f'<div class="mesaj-asistan"><div class="asistan-tur">{tur_yazi}</div><div class="cevap-kutu">{m["icerik"]}</div>', unsafe_allow_html=True)
             if m.get("uyari"):
                 st.markdown(f'<div class="uyari-kutu">⚠️ {m["uyari"]}</div>', unsafe_allow_html=True)
@@ -519,8 +451,8 @@ else:
             
             if tur == "egitim":
                 st.session_state.disi_sayac = 0
-                with st.spinner("🤖 Yapay zeka araştırıyor ve cevap hazırlıyor..."):
-                    cevap = groq_ile_cevapla(msg)
+                with st.spinner("🤖 NumBot düşünüyor ve cevap hazırlıyor..."):
+                    cevap = groq_egitim_cevabi(msg)
                 sohbet["mesajlar"].append({"rol": "asistan", "icerik": cevap, "tur": "egitim"})
             else:
                 st.session_state.disi_sayac += 1
@@ -530,7 +462,7 @@ else:
                     uyari = random.choice([
                         "💡 Sohbet güzel ama biraz ders sorusu soralım mı?",
                         "📖 Ders dışına çıktık, hadi bir soru sor.",
-                        "🎯 Eğlenmek güzel ama öğrenmek de önemli! Bir ders sorusu sormaya ne dersin?"
+                        "🎯 NumBot olarak asıl görevim derslerinde sana yardımcı olmak. Bir ders sorusu sormaya ne dersin?"
                     ])
                     st.session_state.disi_sayac = 0
                 sohbet["mesajlar"].append({"rol": "asistan", "icerik": cevap, "tur": "diyalog", "uyari": uyari})
