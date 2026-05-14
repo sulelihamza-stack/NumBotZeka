@@ -44,8 +44,8 @@ DIYALOG_KALIPLARI = {
     "kötü": ["😔 Üzgünüm... Birlikte çalışırsak daha iyi hissedersin.", "💪 Geçer, merak etme!"],
     "teşekkür": ["🤗 Rica ederim! Başka sorun olursa buradayım.", "💖 Ne demek!"],
     "kim": ["🤖 Ben NumBot! 7. sınıf yapay zeka eğitim asistanın.", "🧠 NumBot - eğitim asistanın!"],
-    "ne yapabilirsin": ["🔍 İnternette araştırma yapıp sorularını cevaplarım. Matematik, Fen, Türkçe, Sosyal, İngilizce... Her şey!", "🌐 DuckDuckGo + Groq AI ile güncel bilgiler sunarım."],
-    "default": ["💭 Ders sorusu sorabilir misin? İnternette araştırıp cevaplayayım.", "📖 Bir konuyu sana anlatmamı ister misin?"]
+    "ne yapabilirsin": ["🔍 Sadece güvenilir Türk eğitim sitelerinde (MEB, EBA, Derslig, Morpa, Okulistik, Tonguç, Khan Academy) araştırma yaparım.", "🌐 DuckDuckGo + Groq AI ile güncel bilgiler sunarım."],
+    "default": ["💭 Ders sorusu sorabilir misin? Güvenilir kaynaklardan araştırayım.", "📖 Bir konuyu sana anlatmamı ister misin?"]
 }
 
 DIYALOG_ANAHTAR = {
@@ -74,14 +74,20 @@ def diyalog_cevap(tur):
     return random.choice(DIYALOG_KALIPLARI.get(anahtar, DIYALOG_KALIPLARI["default"]))
 
 # --------------------------------------------------------------
-# ARAMA (DUCKDUCKGO) + GROQ SENTEZ
+# ARAMA (SADECE GÜVENİLİR TÜRK EĞİTİM SİTELERİ)
 # --------------------------------------------------------------
-@st.cache_data(ttl=3600, show_spinner=False)
 def internetten_ara(soru):
+    # Güvenilir Türk eğitim siteleri
+    siteler = " OR site:".join([
+        "meb.gov.tr", "eba.gov.tr", "odsgm.meb.gov.tr",
+        "derslig.com", "morpakampus.com", "okulistik.com",
+        "tongucakademi.com", "khanacademy.org.tr", "eokultv.com"
+    ])
+    sorgu = f"{soru} 7 sınıf konu anlatımı site:{siteler}"
+    
     try:
-        sorgu = f"{soru} 7 sınıf konu anlatımı"
         with DDGS() as ddgs:
-            sonuclar = list(ddgs.text(sorgu, region="tr-tr", max_results=4))
+            sonuclar = list(ddgs.text(sorgu, region="tr-tr", max_results=5))
             if not sonuclar:
                 return None, None
             metin = ""
@@ -93,7 +99,7 @@ def internetten_ara(soru):
                     kaynaklar.append(s["href"])
             if not metin:
                 return None, None
-            return metin[:3000], kaynaklar[:3]
+            return metin[:4000], kaynaklar[:4]
     except Exception as e:
         return None, None
 
@@ -102,12 +108,13 @@ def groq_cevap(soru, ham_metin):
         client = Groq(api_key=GROQ_API_KEY)
         sistem = """Sen 7. sınıf öğrencilerine ders anlatan bir eğitim asistanısın. NumBot'sun.
         Verilen metne göre soruyu cevapla. MEB müfredatına uygun, anlaşılır Türkçe kullan.
-        Örnekler ver, madde işaretleri kullan. Gereksiz detaylardan kaçın."""
+        Örnekler ver, madde işaretleri kullan. Gereksiz detaylardan kaçın.
+        Kaynakları gösterme, sadece cevap ver."""
         yanit = client.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=[
                 {"role": "system", "content": sistem},
-                {"role": "user", "content": f"Soru: {soru}\n\nİnternet bilgileri:\n{ham_metin}"}
+                {"role": "user", "content": f"Soru: {soru}\n\nGüvenilir kaynaklardan toplanan bilgiler:\n{ham_metin}"}
             ],
             max_tokens=600,
             temperature=0.3
@@ -119,7 +126,7 @@ def groq_cevap(soru, ham_metin):
 def cevap_uret(soru):
     ham_metin, kaynaklar = internetten_ara(soru)
     if not ham_metin:
-        return "🔍 İnternette bu konuda bilgi bulamadım. Lütfen farklı bir soru sor.", None
+        return "🔍 Güvenilir Türk eğitim sitelerinde (MEB, EBA, Derslig, Morpa, Okulistik, Tonguç, Khan Academy) bu konuda bilgi bulamadım. Lütfen farklı bir soru sor.", None
     
     cevap = groq_cevap(soru, ham_metin)
     if not cevap:
@@ -127,7 +134,7 @@ def cevap_uret(soru):
     
     kaynak_metni = ""
     if kaynaklar:
-        kaynak_metni = "\n\n📚 **Kaynaklar:**\n" + "\n".join([f"🔗 {k}" for k in kaynaklar])
+        kaynak_metni = "\n\n📚 **Güvenilir Kaynaklar:**\n" + "\n".join([f"🔗 {k}" for k in kaynaklar])
     
     return cevap + kaynak_metni, kaynaklar
 
@@ -205,7 +212,7 @@ with st.sidebar:
                 st.rerun()
     
     st.markdown("---")
-    st.caption("🔍 DuckDuckGo + Groq AI ile gerçek zamanlı araştırma")
+    st.caption("🔍 Sadece güvenilir Türk eğitim siteleri: MEB, EBA, Derslig, Morpa, Okulistik, Tonguç, Khan Academy")
     
     if st.session_state.kullanici_adi:
         st.markdown(f"<div style='text-align:center;margin-top:20px;padding:10px;background:rgba(102,126,234,0.2);border-radius:15px;'>👤 {st.session_state.kullanici_adi}</div>", unsafe_allow_html=True)
@@ -233,7 +240,7 @@ if st.session_state.isim_bekleniyor:
 # --------------------------------------------------------------
 ad = st.session_state.kullanici_adi or "Öğrenci"
 st.markdown(f'<div class="ana-baslik">🤖 Merhaba, {ad}!</div>', unsafe_allow_html=True)
-st.markdown('<div class="ana-alt">NumBot | 7. Sınıf Yapay Zeka Eğitim Asistanı | DuckDuckGo + Groq AI</div>', unsafe_allow_html=True)
+st.markdown('<div class="ana-alt">NumBot | 7. Sınıf Yapay Zeka Eğitim Asistanı | Sadece Güvenilir Türk Siteleri</div>', unsafe_allow_html=True)
 
 sohbet = aktif_sohbet()
 
@@ -264,7 +271,7 @@ else:
             
             if tur == "egitim":
                 st.session_state.disi_sayac = 0
-                with st.spinner("🔍 NumBot internette araştırıyor ve Groq AI ile cevap hazırlıyor..."):
+                with st.spinner("🔍 NumBot güvenilir Türk eğitim sitelerinde araştırıyor ve Groq AI ile cevap hazırlıyor..."):
                     cevap, kaynaklar = cevap_uret(msg)
                 sohbet["mesajlar"].append({"rol": "asistan", "icerik": cevap, "tur": "egitim", "kaynaklar": kaynaklar})
                 sohbetleri_kaydet(st.session_state.sohbetler)
