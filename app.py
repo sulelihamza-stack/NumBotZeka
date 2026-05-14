@@ -6,7 +6,6 @@ import re
 import random
 import json
 import os
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
@@ -63,8 +62,8 @@ DIYALOG_KALIPLARI = {
     "günaydın": ["🌅 Günaydın! Verimli bir gün geçirmeni dilerim.", "☀️ Günaydın! Yeni bilgiler öğrenmeye hazır mısın?"],
     "iyi geceler": ["🌙 İyi geceler! Yarın görüşürüz.", "⭐ İyi geceler! Öğrendiklerini tekrar etmeyi unutma."],
     "kim": ["🤖 Ben NumBot! 7. sınıf yapay zeka eğitim asistanın.", "🧠 NumBot - eğitim asistanın!"],
-    "ne yapabilirsin": ["🔍 Sana 7. sınıf konularını anlatabilirim! Matematik, fen, Türkçe, İngilizce sorularını cevaplarım.", "📚 Her ders sorusunu internette araştırıp cevaplarım. Kaynak ve video da öneririm."],
-    "sıkıldım": ["😊 Sıkılmak normal! Hadi bir soru sor, belki ilginç bir şey keşfederiz.", "🎮 Küçük bir soruyla başlayalım, ders çalışmak eğlenceli olabilir!"],
+    "ne yapabilirsin": ["🔍 Sana 7. sınıf konularını anlatabilirim! Matematik, fen, Türkçe, İngilizce sorularını cevaplarım.", "📚 Her ders sorusunu internette araştırıp cevaplarım."],
+    "sıkıldım": ["😊 Sıkılmak normal! Hadi bir soru sor, belki ilginç bir şey keşfederiz.", "🎮 Küçük bir soruyla başlayalım!"],
     "default": ["💭 Ders konusunda bir sorun mu var? Matematik, fen, Türkçe sorabilirsin.", "📖 Bir ders sorusu sormak ister misin?"]
 }
 
@@ -110,18 +109,18 @@ def diyalog_cevap(tur):
     return random.choice(DIYALOG_KALIPLARI.get(anahtar, DIYALOG_KALIPLARI["default"]))
 
 # --------------------------------------------------------------
-# GÜVENİLİR KAYNAKLAR (SADECE 7. SINIF EĞİTİM SİTELERİ)
+# SPOR İÇERİK ENGELLEME
 # --------------------------------------------------------------
-GUVENILIR_SITELER = [
-    "meb.gov.tr", "eba.gov.tr", "odsgm.meb.gov.tr",
-    "derslig.com", "morpakampus.com", "okulistik.com",
-    "khanacademy.org.tr", "tongucakademi.com", "eokultv.com"
+SPOR_KELIMELERI = [
+    "nba", "futbol", "basketbol", "maç", "takım", "lig", "şampiyon", "lakers",
+    "galatasaray", "fenerbahçe", "beşiktaş", "spor", "karşılaşma", "skor", 
+    "gol", "sayı", "oyuncu", "transfer", "kupa", "galibiyet", "maçı"
 ]
 
-def kaynak_guvenilir_mi(url):
-    url_lower = url.lower()
-    for site in GUVENILIR_SITELER:
-        if site in url_lower:
+def spor_icerik_mi(baslik, icerik):
+    kontrol_metni = (baslik + " " + icerik).lower()
+    for kelime in SPOR_KELIMELERI:
+        if kelime in kontrol_metni:
             return True
     return False
 
@@ -131,24 +130,16 @@ def kaynak_guvenilir_mi(url):
 def sayfa_cek(url):
     try:
         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
-        r = requests.get(url, timeout=10, headers=headers)
+        r = requests.get(url, timeout=8, headers=headers)
         r.encoding = "utf-8"
         soup = BeautifulSoup(r.text, "html.parser")
         
         for tag in soup(["script", "style", "nav", "footer", "header", "aside"]):
             tag.decompose()
         
-        metin = ""
-        for etiket in ["article", "main", "p", "h2", "h3", "li"]:
-            for el in soup.find_all(etiket):
-                metin += el.get_text(" ", strip=True) + " "
-        
-        if not metin:
-            metin = " ".join([el.get_text(" ", strip=True) for el in soup.find_all(["p", "h2", "h3", "li"])])
-        
+        metin = " ".join([el.get_text(" ", strip=True) for el in soup.find_all(["p", "h2", "h3", "li"])])
         metin = re.sub(r'(reklam|copyright|©|gizlilik|cookie|facebook|twitter|instagram|youtube)[^.]*\.', '', metin, flags=re.IGNORECASE)
-        
-        return metin[:4000]
+        return metin[:3000]
     except:
         return ""
 
@@ -162,13 +153,13 @@ def tfidf_ozet(soru, metinler):
     cumleler = []
     for m in metinler:
         cumleler += re.split(r'(?<=[.!?])\s+', m)
-    cumleler = [c.strip() for c in cumleler if len(c.strip()) > 40]
+    cumleler = [c.strip() for c in cumleler if len(c.strip()) > 40][:30]
     
     if not cumleler:
         return "Yeterli açıklama yok."
     
     try:
-        docs = [soru] + cumleler[:50]
+        docs = [soru] + cumleler
         vec = TfidfVectorizer(stop_words="turkish", max_features=400)
         tfidf = vec.fit_transform(docs)
         sim = cosine_similarity(tfidf[0:1], tfidf[1:]).flatten()
@@ -184,19 +175,18 @@ def tfidf_ozet(soru, metinler):
 def groq_cevap(soru, metin):
     try:
         client = Groq(api_key=GROQ_API_KEY)
-        sistem = """Sen 7. sınıf öğrencilerine ders anlatan bir eğitim asistanısın. NumBot'sun.
+        sistem = """Sen 7. sınıf öğrencilerine ders anlatan bir eğitim asistanısın.
         Verilen metne göre soruyu cevapla.
         MEB müfredatına uygun, 7. sınıf seviyesinde anlaşılır Türkçe kullan.
-        Örnekler ver, madde işaretleri kullan.
-        Kaynak ismi veya site adı YAZMA."""
+        Örnekler ver, madde işaretleri kullan."""
         
         yanit = client.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=[
                 {"role": "system", "content": sistem},
-                {"role": "user", "content": f"Soru: {soru}\n\nDers notları:\n{metin[:4000]}"}
+                {"role": "user", "content": f"Soru: {soru}\n\nBilgiler:\n{metin[:3500]}"}
             ],
-            max_tokens=600,
+            max_tokens=500,
             temperature=0.3
         )
         return yanit.choices[0].message.content.strip()
@@ -204,48 +194,46 @@ def groq_cevap(soru, metin):
         return None
 
 # --------------------------------------------------------------
-# ARAMA (SADECE GÜVENİLİR KAYNAKLAR)
+# NORMAL ARAMA (SİTE FİLTRESİ YOK, SADECE SPOR ENGELLİ)
 # --------------------------------------------------------------
-def guvenilir_kaynaklarda_ara(soru):
-    tum_sonuclar = []
-    for site in GUVENILIR_SITELER:
-        ozel_sorgu = f"site:{site} {soru} 7 sınıf konu anlatımı"
-        try:
-            with DDGS() as ddgs:
-                sonuc = list(ddgs.text(ozel_sorgu, region="tr-tr", max_results=2))
-                tum_sonuclar.extend(sonuc)
-        except:
-            pass
-        time.sleep(0.15)
-    return tum_sonuclar
+def normal_ara(soru):
+    if any(k in soru.lower() for k in ["zarf", "zamir", "fiil", "isim", "sıfat", "dilbilgisi"]):
+        arama_sorgusu = f"{soru} türkçe dilbilgisi konu anlatımı 7 sınıf"
+    else:
+        arama_sorgusu = f"{soru} 7 sınıf konu anlatımı"
+    
+    try:
+        with DDGS() as ddgs:
+            sonuclar = list(ddgs.text(arama_sorgusu, region="tr-tr", max_results=6))
+            # Spor içeriklerini filtrele
+            return [s for s in sonuclar if not spor_icerik_mi(s.get("title",""), s.get("body",""))]
+    except:
+        return []
 
 # --------------------------------------------------------------
 # CEVAP OLUŞTUR
 # --------------------------------------------------------------
 def cevap_uret(soru):
-    # Sadece güvenilir kaynaklarda ara
-    sonuclar = guvenilir_kaynaklarda_ara(soru)
+    sonuclar = normal_ara(soru)
     
     if not sonuclar:
-        return "Üzgünüm, bu konuda güvenilir kaynaklarda (MEB, EBA, Derslig, Morpa Kampüs, Okulistik, Khan Academy) bir şey bulamadım. Lütfen farklı bir soru sor.", [], None
+        return "Üzgünüm, bu konuda internette bir şey bulamadım. Lütfen farklı bir soru sor.", [], None
     
     metinler = []
     kaynaklar = []
     
-    for sonuc in sonuclar[:5]:
+    for sonuc in sonuclar[:4]:
         if sonuc.get("body"):
             metinler.append(sonuc["body"])
         if sonuc.get("href") and sonuc.get("title"):
-            baslik = sonuc["title"][:50]
-            kaynaklar.append({"url": sonuc["href"], "baslik": baslik})
-            
+            kaynaklar.append({"url": sonuc["href"], "baslik": sonuc["title"][:50]})
             sayfa = sayfa_cek(sonuc["href"])
             if sayfa:
                 metinler.append(sayfa)
-            time.sleep(0.2)
+            time.sleep(0.15)
     
     if not metinler:
-        return "İçerik alınamadı.", kaynaklar[:4], None
+        return "İçerik alınamadı.", kaynaklar[:3], None
     
     ham = "\n\n".join(metinler)
     cevap = groq_cevap(soru, ham)
@@ -254,7 +242,7 @@ def cevap_uret(soru):
     
     video_link = f"https://www.youtube.com/results?search_query={soru.replace(' ', '+')}+7+sınıf+konu+anlatımı"
     
-    return cevap, kaynaklar[:4], video_link
+    return cevap, kaynaklar[:3], video_link
 
 # --------------------------------------------------------------
 # SOHBET YÖNETİMİ (JSON)
@@ -335,7 +323,7 @@ with st.sidebar:
                 st.rerun()
     
     st.markdown("---")
-    st.caption("🔍 Sadece güvenilir kaynaklar: MEB, EBA, Derslig, Morpa Kampüs, Okulistik, Khan Academy")
+    st.caption("🔍 NumBot - 7. Sınıf Eğitim Asistanı")
     
     if st.session_state.kullanici_adi:
         st.markdown(f"<div style='text-align:center;margin-top:20px;padding:10px;background:rgba(102,126,234,0.2);border-radius:15px;'>👤 {st.session_state.kullanici_adi}</div>", unsafe_allow_html=True)
@@ -363,7 +351,7 @@ if st.session_state.isim_bekleniyor:
 # --------------------------------------------------------------
 ad = st.session_state.kullanici_adi or "Öğrenci"
 st.markdown(f'<div class="ana-baslik">🤖 Merhaba, {ad}!</div>', unsafe_allow_html=True)
-st.markdown('<div class="ana-alt">NumBot | Sadece MEB, EBA, Derslig, Morpa, Okulistik, Khan Academy</div>', unsafe_allow_html=True)
+st.markdown('<div class="ana-alt">NumBot | 7. Sınıf Yapay Zeka Eğitim Asistanı</div>', unsafe_allow_html=True)
 
 sohbet = aktif_sohbet()
 
@@ -377,7 +365,7 @@ else:
             st.markdown(f'<div class="mesaj-asistan"><div class="cevap-kutu">{m["icerik"]}</div>', unsafe_allow_html=True)
             if m.get("kaynaklar"):
                 html = '<div style="margin-top:10px">📚 <strong>Kaynaklar:</strong><br>'
-                for k in m["kaynaklar"][:4]:
+                for k in m["kaynaklar"][:3]:
                     html += f'<a class="kaynak-kart" href="{k["url"]}" target="_blank">🔗 {k["baslik"][:45]}</a> '
                 html += '</div>'
                 st.markdown(html, unsafe_allow_html=True)
@@ -401,7 +389,7 @@ else:
             
             if tur == "egitim":
                 st.session_state.disi_sayac = 0
-                with st.spinner("🔍 NumBot güvenilir kaynaklardan araştırıyor (MEB, EBA, Derslig, Morpa, Okulistik, Khan Academy)..."):
+                with st.spinner("🔍 NumBot internette araştırıyor..."):
                     cevap, kaynaklar, video = cevap_uret(msg)
                 sohbet["mesajlar"].append({
                     "rol": "asistan",
