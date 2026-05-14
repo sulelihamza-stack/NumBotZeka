@@ -110,28 +110,13 @@ def diyalog_cevap(tur):
     return random.choice(DIYALOG_KALIPLARI.get(anahtar, DIYALOG_KALIPLARI["default"]))
 
 # --------------------------------------------------------------
-# GÜVENİLİR KAYNAKLAR (7. SINIF İÇİN)
+# GÜVENİLİR KAYNAKLAR (SADECE 7. SINIF EĞİTİM SİTELERİ)
 # --------------------------------------------------------------
 GUVENILIR_SITELER = [
     "meb.gov.tr", "eba.gov.tr", "odsgm.meb.gov.tr",
     "derslig.com", "morpakampus.com", "okulistik.com",
-    "khanacademy.org.tr", "tongucakademi.com", "eokultv.com",
-    "turkcedersi.net", "dilbilgisi.net", "sinifogretmenim.com",
-    "sosyalciniz.net", "dersarsivi.com.tr", "konuvakti.com"
+    "khanacademy.org.tr", "tongucakademi.com", "eokultv.com"
 ]
-
-SPOR_KELIMELERI = [
-    "nba", "futbol", "basketbol", "maç", "takım", "lig", "şampiyon", "lakers",
-    "galatasaray", "fenerbahçe", "beşiktaş", "trabzon", "spor", "karşılaşma",
-    "skor", "gol", "sayı", "oyuncu", "transfer", "kupa", "maçı", "galibiyet"
-]
-
-def spor_icerik_mi(baslik, icerik):
-    kontrol_metni = (baslik + " " + icerik).lower()
-    for kelime in SPOR_KELIMELERI:
-        if kelime in kontrol_metni:
-            return True
-    return False
 
 def kaynak_guvenilir_mi(url):
     url_lower = url.lower()
@@ -201,13 +186,9 @@ def groq_cevap(soru, metin):
         client = Groq(api_key=GROQ_API_KEY)
         sistem = """Sen 7. sınıf öğrencilerine ders anlatan bir eğitim asistanısın. NumBot'sun.
         Verilen metne göre soruyu cevapla.
-        KURALLAR:
-        - MEB müfredatına uygun ol
-        - 7. sınıf seviyesinde anlaşılır Türkçe kullan
-        - Örnekler ver
-        - Madde işaretleri kullan
-        - Kaynak ismi veya site adı YAZMA
-        - SPOR (NBA, futbol, basketbol) ile ilgili örnekler VERME!"""
+        MEB müfredatına uygun, 7. sınıf seviyesinde anlaşılır Türkçe kullan.
+        Örnekler ver, madde işaretleri kullan.
+        Kaynak ismi veya site adı YAZMA."""
         
         yanit = client.chat.completions.create(
             model="llama-3.1-8b-instant",
@@ -238,45 +219,24 @@ def guvenilir_kaynaklarda_ara(soru):
         time.sleep(0.15)
     return tum_sonuclar
 
-def normal_ara(soru):
-    if any(k in soru.lower() for k in ["zarf", "zamir", "fiil", "isim", "sıfat", "edat", "bağlaç", "noktalama"]):
-        arama_sorgusu = f"{soru} türkçe dilbilgisi konu anlatımı 7 sınıf"
-    elif any(k in soru.lower() for k in ["üretim", "dağıtım", "tüketim", "ekonomi"]):
-        arama_sorgusu = f"{soru} 7 sınıf sosyal bilgiler konu anlatımı"
-    else:
-        arama_sorgusu = f"{soru} 7 sınıf konu anlatımı"
-    
-    try:
-        with DDGS() as ddgs:
-            return list(ddgs.text(arama_sorgusu, region="tr-tr", max_results=6))
-    except:
-        return []
-
 # --------------------------------------------------------------
 # CEVAP OLUŞTUR
 # --------------------------------------------------------------
 def cevap_uret(soru):
-    # 1. Önce güvenilir kaynaklarda ara
-    guvenilir_sonuclar = guvenilir_kaynaklarda_ara(soru)
+    # Sadece güvenilir kaynaklarda ara
+    sonuclar = guvenilir_kaynaklarda_ara(soru)
     
-    # 2. Bulunamazsa normal ara (spor filtreli)
-    if not guvenilir_sonuclar:
-        normal_sonuclar = normal_ara(soru)
-        guvenilir_sonuclar = [s for s in normal_sonuclar if not spor_icerik_mi(s.get("title",""), s.get("body",""))]
-    
-    if not guvenilir_sonuclar:
+    if not sonuclar:
         return "Üzgünüm, bu konuda güvenilir kaynaklarda (MEB, EBA, Derslig, Morpa Kampüs, Okulistik, Khan Academy) bir şey bulamadım. Lütfen farklı bir soru sor.", [], None
     
     metinler = []
     kaynaklar = []
     
-    for sonuc in guvenilir_sonuclar[:5]:
+    for sonuc in sonuclar[:5]:
         if sonuc.get("body"):
             metinler.append(sonuc["body"])
         if sonuc.get("href") and sonuc.get("title"):
             baslik = sonuc["title"][:50]
-            if kaynak_guvenilir_mi(sonuc["href"]):
-                baslik = "🛡️ " + baslik
             kaynaklar.append({"url": sonuc["href"], "baslik": baslik})
             
             sayfa = sayfa_cek(sonuc["href"])
@@ -305,7 +265,10 @@ def sohbetleri_yukle():
     if os.path.exists(SOHBET_DOSYA):
         with open(SOHBET_DOSYA, "r", encoding="utf-8") as f:
             return json.load(f)
-    return []
+    else:
+        with open(SOHBET_DOSYA, "w", encoding="utf-8") as f:
+            json.dump([], f, ensure_ascii=False, indent=2)
+        return []
 
 def sohbetleri_kaydet(sohbetler):
     with open(SOHBET_DOSYA, "w", encoding="utf-8") as f:
@@ -372,7 +335,7 @@ with st.sidebar:
                 st.rerun()
     
     st.markdown("---")
-    st.caption("🔍 Güvenilir kaynaklar: MEB, EBA, Derslig, Morpa Kampüs, Okulistik, Khan Academy")
+    st.caption("🔍 Sadece güvenilir kaynaklar: MEB, EBA, Derslig, Morpa Kampüs, Okulistik, Khan Academy")
     
     if st.session_state.kullanici_adi:
         st.markdown(f"<div style='text-align:center;margin-top:20px;padding:10px;background:rgba(102,126,234,0.2);border-radius:15px;'>👤 {st.session_state.kullanici_adi}</div>", unsafe_allow_html=True)
@@ -400,7 +363,7 @@ if st.session_state.isim_bekleniyor:
 # --------------------------------------------------------------
 ad = st.session_state.kullanici_adi or "Öğrenci"
 st.markdown(f'<div class="ana-baslik">🤖 Merhaba, {ad}!</div>', unsafe_allow_html=True)
-st.markdown('<div class="ana-alt">NumBot | MEB Müfredatına Uygun | Güvenilir Kaynaklar | 7. Sınıf</div>', unsafe_allow_html=True)
+st.markdown('<div class="ana-alt">NumBot | Sadece MEB, EBA, Derslig, Morpa, Okulistik, Khan Academy</div>', unsafe_allow_html=True)
 
 sohbet = aktif_sohbet()
 
@@ -438,7 +401,7 @@ else:
             
             if tur == "egitim":
                 st.session_state.disi_sayac = 0
-                with st.spinner("🔍 NumBot güvenilir kaynaklardan (MEB, EBA, Derslig, Morpa...) araştırıyor..."):
+                with st.spinner("🔍 NumBot güvenilir kaynaklardan araştırıyor (MEB, EBA, Derslig, Morpa, Okulistik, Khan Academy)..."):
                     cevap, kaynaklar, video = cevap_uret(msg)
                 sohbet["mesajlar"].append({
                     "rol": "asistan",
