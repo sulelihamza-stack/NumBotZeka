@@ -25,19 +25,27 @@ except ImportError:
 
 GROQ_API_KEY = "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"
 
-st.set_page_config(page_title="NumBot", page_icon="🤖", layout="wide")
+st.set_page_config(page_title="NumBot - 7. Sınıf Eğitim Asistanı", page_icon="🤖", layout="wide")
 
+# SİYAH TEMA
 st.markdown("""
 <style>
 .stApp, [data-testid="stAppViewContainer"] { background: #000000 !important; }
 [data-testid="stSidebar"] { background: #1a1a2e !important; border-right: 1px solid #2a2a3e !important; }
-.ana-baslik { font-size: 2rem; font-weight: bold; text-align: center; background: linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 20px 0 5px; }
-.mesaj-kullanici { text-align: right; background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 10px 15px; border-radius: 20px; margin: 10px 0; display: inline-block; float: right; clear: both; }
-.mesaj-asistan { background: #1a1a2e; padding: 12px 18px; border-radius: 20px; margin: 10px 0; color: #e0e0e0; border: 1px solid #2a2a3e; }
-.kaynak-kart { background: #1a1a2e; border: 1px solid #2a2a3e; border-radius: 20px; padding: 5px 12px; font-size: 12px; text-decoration: none; margin: 3px; display: inline-block; color: #aaa; }
+[data-testid="stSidebar"] * { color: #e0e0e0 !important; }
+.sb-baslik { font-size: 1.2rem; font-weight: 700; text-align: center; padding: 15px; background: linear-gradient(135deg, #667eea, #764ba2); border-radius: 12px; margin: 10px; color: white; }
+.ana-baslik { font-size: 2rem; font-weight: 700; text-align: center; background: linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 20px 0 5px; }
+.ana-alt { font-size: 0.9rem; color: #888; text-align: center; margin-bottom: 20px; }
+.mesaj-kullanici { display: flex; justify-content: flex-end; margin: 10px 0; }
+.mesaj-kullanici span { background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 10px 18px; border-radius: 20px; max-width: 70%; }
+.mesaj-asistan { margin: 10px 0; }
+.cevap-kutu { background: #1a1a2e; border-radius: 20px; padding: 15px 20px; color: #e0e0e0; border: 1px solid #2a2a3e; }
+.kaynak-kart { background: #1a1a2e; border: 1px solid #2a2a3e; border-radius: 15px; padding: 4px 12px; font-size: 12px; text-decoration: none; margin: 3px; display: inline-block; color: #aaa; }
 .kaynak-kart:hover { background: #667eea; color: white; }
-.isim-ekran { max-width: 400px; margin: 100px auto; background: #1a1a2e; padding: 40px; border-radius: 30px; text-align: center; border: 1px solid #2a2a3e; }
+.isim-ekran { max-width: 400px; margin: 100px auto; background: #1a1a2e; border-radius: 30px; padding: 40px; text-align: center; border: 1px solid #2a2a3e; }
 [data-testid="stChatInput"] { background: #1a1a2e !important; border-color: #2a2a3e !important; }
+.video-oneri a { background: #ff6b6b; padding: 6px 14px; border-radius: 20px; text-decoration: none; font-size: 12px; color: white; display: inline-block; margin-top: 10px; }
+.uyari-kutu { background: rgba(255,200,100,0.1); border-radius: 10px; padding: 8px; margin-top: 8px; color: #ffd966; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -48,22 +56,42 @@ DIYALOG_KALIPLARI = {
     "iyi": ["🎉 Ne güzel! O zaman bir ders sorusu soralım.", "⭐ Süper! Hadi öğrenmeye başlayalım."],
     "kötü": ["😔 Üzgünüm... Birlikte çalışırsak daha iyi hissedersin.", "💪 Geçer, merak etme!"],
     "teşekkür": ["🤗 Rica ederim! Başka sorun olursa buradayım.", "💖 Ne demek!"],
+    "günaydın": ["🌅 Günaydın! Verimli bir gün geçirmeni dilerim.", "☀️ Günaydın! Yeni bilgiler öğrenmeye hazır mısın?"],
+    "iyi geceler": ["🌙 İyi geceler! Yarın görüşürüz.", "⭐ İyi geceler! Öğrendiklerini tekrar etmeyi unutma."],
     "kim": ["🤖 Ben NumBot! 7. sınıf yapay zeka eğitim asistanın.", "🧠 NumBot - eğitim asistanın!"],
-    "default": ["📚 Ders sorusu sormak ister misin? Matematik, Fen, Türkçe...", "🎯 Bir konuyu sana anlatabilirim, hangisi?"]
+    "ne yapabilirsin": ["🔍 Sana 7. sınıf konularını anlatabilirim! Matematik, fen, Türkçe, İngilizce sorularını cevaplarım.", "📚 Her ders sorusunu internette araştırıp cevaplarım. Kaynak ve video da öneririm."],
+    "sıkıldım": ["😊 Sıkılmak normal! Hadi bir soru sor, belki ilginç bir şey keşfederiz.", "🎮 Küçük bir soruyla başlayalım, ders çalışmak eğlenceli olabilir!"],
+    "default": ["💭 Ders konusunda bir sorun mu var? Matematik, fen, Türkçe sorabilirsin.", "📖 Bir ders sorusu sormak ister misin?"]
 }
+
+DERS_DISI_UYARI = [
+    "💡 Sohbet güzel ama biraz ders sorusu soralım mı?",
+    "📖 Ders dışına çıktık, hadi bir soru sor.",
+    "🎯 NumBot olarak asıl görevim derslerinde sana yardımcı olmak!"
+]
 
 DIYALOG_ANAHTAR = {
-    "selam": ["selam", "merhaba", "hey", "naber"],
-    "nasilsin": ["nasılsın", "iyi misin"],
-    "iyi": ["iyiyim", "iyi", "güzel"],
-    "kötü": ["kötüyüm", "kötü", "üzgün"],
-    "teşekkür": ["teşekkür", "sağ ol"],
-    "kim": ["kimsin", "nesin", "adın ne"]
+    "selam": ["selam", "merhaba", "hey", "naber", "selamlar"],
+    "nasilsin": ["nasılsın", "iyi misin", "ne yapıyorsun"],
+    "iyi": ["iyiyim", "iyi", "güzel", "harika", "süper"],
+    "kötü": ["kötüyüm", "kötü", "berbat", "üzgün", "mutsuz"],
+    "teşekkür": ["teşekkür", "sağ ol", "mersi", "thanks"],
+    "günaydın": ["günaydın", "iyi sabahlar", "sabah"],
+    "iyi geceler": ["iyi geceler", "iyi akşamlar"],
+    "kim": ["kimsin", "nesin", "adın ne", "sen kimsin"],
+    "ne yapabilirsin": ["ne yapabilirsin", "ne yaparsın", "nasıl yardım"],
+    "sıkıldım": ["sıkıldım", "bıktım", "canım sıkılıyor"]
 }
 
-EGITIM_KELIMELER = ["nedir", "nasıl", "açıkla", "anlat", "çöz", "öğret", "matematik", "fen", "türkçe", "ingilizce", "sosyal", "tarih", "coğrafya", "denklem", "kesir", "yüzde", "oran", "zarf", "zamir", "fiil", "isim", "sıfat", "fotosentez", "mitoz", "hücre", "dna", "basınç", "elektrik"]
+EGITIM_KELIMELER = [
+    "nedir", "nasıl", "açıkla", "anlat", "çöz", "hesapla", "öğret",
+    "matematik", "fen", "türkçe", "tarih", "coğrafya", "ingilizce", "sosyal",
+    "denklem", "kesir", "yüzde", "oran", "tam sayı", "rasyonel",
+    "zarf", "zamir", "fiil", "isim", "sıfat", "noktalama", "dilbilgisi",
+    "fotosentez", "mitoz", "hücre", "dna", "basınç", "elektrik"
+]
 
-def mesaj_turu(mesaj):
+def mesaj_turu_tespit(mesaj):
     m = mesaj.lower().strip()
     for tur, kelimeler in DIYALOG_ANAHTAR.items():
         if any(k in m for k in kelimeler):
@@ -76,8 +104,25 @@ def diyalog_cevap(tur):
     anahtar = tur.split(":")[1] if ":" in tur else "default"
     return random.choice(DIYALOG_KALIPLARI.get(anahtar, DIYALOG_KALIPLARI["default"]))
 
-# GÜVENİLİR KAYNAK FİLTRESİ
-GUVENILIR_SITELER = ["meb", "eba.gov", "derslig", "okulistik", "morpakampüs", "vitamineba", "khanacademy", "tr.wikipedia", "tdk", "tdk.gov"]
+# GÜVENİLİR KAYNAKLAR
+GUVENILIR_SITELER = [
+    "meb", "eba.gov", "derslig.com", "okulistik.com", "morpakampus.com",
+    "vitamineba.com", "khanacademy.org", "tr.wikipedia.org", "tdk.gov.tr",
+    "turkcedersi.net", "dilbilgisi.net", "sinifogretmenim.com", "tongucakademi.com"
+]
+
+SPOR_KELIMELERI = [
+    "nba", "futbol", "basketbol", "maç", "takım", "lig", "şampiyon", "lakers",
+    "galatasaray", "fenerbahçe", "beşiktaş", "trabzon", "spor", "karşılaşma",
+    "skor", "gol", "sayı", "oyuncu", "transfer", "kupa", "galibiyet", "mağlubiyet"
+]
+
+def spor_icerik_mi(baslik, icerik):
+    kontrol_metni = (baslik + " " + icerik).lower()
+    for kelime in SPOR_KELIMELERI:
+        if kelime in kontrol_metni:
+            return True
+    return False
 
 def kaynak_guvenilir_mi(url):
     url_lower = url.lower()
@@ -88,9 +133,13 @@ def kaynak_guvenilir_mi(url):
 
 # ARAMA
 @st.cache_data(ttl=3600, show_spinner=False)
-def ddg_ara(sorgu):
-    # Daha spesifik arama sorgusu
-    arama_sorgusu = f"{sorgu} 7.sınıf konu anlatımı"
+def ddg_ara(soru):
+    # Dil bilgisi için özel arama
+    if any(k in soru.lower() for k in ["zarf", "zamir", "fiil", "isim", "sıfat", "edat", "bağlaç", "noktalama"]):
+        arama_sorgusu = f"{soru} türkçe dilbilgisi konu anlatımı 7 sınıf"
+    else:
+        arama_sorgusu = f"{soru} 7 sınıf konu anlatımı"
+    
     try:
         with DDGS() as ddgs:
             return list(ddgs.text(arama_sorgusu, region="tr-tr", max_results=8))
@@ -103,22 +152,27 @@ def sayfa_cek(url):
         r = requests.get(url, timeout=10, headers=headers)
         r.encoding = "utf-8"
         soup = BeautifulSoup(r.text, "html.parser")
+        
         for tag in soup(["script", "style", "nav", "footer", "header", "aside"]):
             tag.decompose()
         
-        # Ana içerik etiketlerini bul
+        # İçerik bul
         metin = ""
-        for etiket in ["article", "main", "div class='content'", "div class='lesson'", "p", "h2", "h3"]:
-            for el in soup.find_all(etiket.split()[0] if " " in etiket else etiket):
+        for etiket in ["article", "main", ".content", ".lesson", ".ders", "p", "h2", "h3"]:
+            for el in soup.select(etiket):
                 metin += el.get_text(" ", strip=True) + " "
         
         if not metin:
             metin = " ".join([el.get_text(" ", strip=True) for el in soup.find_all(["p", "h2", "h3", "li"])])
         
+        # Gereksiz kısımları temizle
+        metin = re.sub(r'(reklam|copyright|©|gizlilik|cookie|facebook|twitter|instagram|youtube)[^.]*\.', '', metin, flags=re.IGNORECASE)
+        
         return metin[:4000]
     except:
         return ""
 
+# TF-IDF FALLBACK
 def tfidf_ozet(soru, metinler):
     if not metinler:
         return "Bilgi bulunamadı."
@@ -126,33 +180,35 @@ def tfidf_ozet(soru, metinler):
     cumleler = []
     for m in metinler:
         cumleler += re.split(r'(?<=[.!?])\s+', m)
-    cumleler = [c.strip() for c in cumleler if len(c.strip()) > 40 and not any(x in c for x in ["reklam", "cookie", "gizlilik", "copyright", "©"])]
+    cumleler = [c.strip() for c in cumleler if len(c.strip()) > 40]
     
     if not cumleler:
-        return "Yeterli açıklama bulunamadı."
+        return "Yeterli açıklama yok."
     
     try:
         docs = [soru] + cumleler[:50]
         vec = TfidfVectorizer(stop_words="turkish", max_features=400)
         tfidf = vec.fit_transform(docs)
         sim = cosine_similarity(tfidf[0:1], tfidf[1:]).flatten()
-        idx = np.argsort(sim)[::-1][:6]
+        idx = np.argsort(sim)[::-1][:5]
         secilen = [cumleler[i] for i in idx if sim[i] > 0.1]
-        return "\n\n".join(secilen[:5]) if secilen else cumleler[0]
+        return "\n\n".join(secilen[:4]) if secilen else cumleler[0]
     except:
-        return "\n\n".join(cumleler[:5])
+        return "\n\n".join(cumleler[:4])
 
+# GROQ CEVAP
 def groq_cevap(soru, metin):
     try:
         client = Groq(api_key=GROQ_API_KEY)
-        sistem = """Sen 7. sınıf öğrencilerine ders anlatan bir eğitim asistanısın.
+        sistem = """Sen 7. sınıf öğrencilerine ders anlatan bir eğitim asistanısın. NumBot'sun.
         Verilen metne göre soruyu cevapla.
-        Kurallar:
+        KURALLAR:
         - MEB müfredatına uygun ol
         - 7. sınıf seviyesinde anlaşılır Türkçe kullan
         - Örnekler ver
         - Madde işaretleri kullan
-        - Kaynak ismi veya site adı YAZMA"""
+        - Kaynak ismi veya site adı YAZMA
+        - SPOR (NBA, futbol, basketbol) ile ilgili örnekler VERME! Türkçe dersine uygun örnekler ver"""
         
         yanit = client.chat.completions.create(
             model="llama-3.1-8b-instant",
@@ -164,29 +220,47 @@ def groq_cevap(soru, metin):
             temperature=0.3
         )
         return yanit.choices[0].message.content.strip()
-    except Exception as e:
+    except:
         return None
 
+# CEVAP OLUŞTUR
 def cevap_uret(soru):
     sonuclar = ddg_ara(soru)
     
     if not sonuclar:
         return "Üzgünüm, bu konuda kaynak bulamadım. Lütfen farklı bir soru sor.", [], None
     
-    # Önce güvenilir kaynakları filtrele
-    guvenilir_sonuclar = [s for s in sonuclar if s.get("href") and kaynak_guvenilir_mi(s["href"])]
-    if guvenilir_sonuclar:
-        sonuclar = guvenilir_sonuclar + [s for s in sonuclar if s not in guvenilir_sonuclar]
+    # Spor içeriklerini filtrele
+    filtrelenmis = []
+    for s in sonuclar:
+        baslik = s.get("title", "")
+        icerik = s.get("body", "")
+        if not spor_icerik_mi(baslik, icerik):
+            filtrelenmis.append(s)
+    
+    if not filtrelenmis:
+        filtrelenmis = sonuclar[:4]
+    
+    # Güvenilir kaynakları öncele
+    guvenilirler = []
+    digerleri = []
+    for s in filtrelenmis:
+        url = s.get("href", "")
+        if kaynak_guvenilir_mi(url):
+            guvenilirler.append(s)
+        else:
+            digerleri.append(s)
+    
+    sirali_sonuclar = guvenilirler + digerleri
     
     metinler = []
     kaynaklar = []
     
-    for sonuc in sonuclar[:5]:
+    for sonuc in sirali_sonuclar[:5]:
         if sonuc.get("body"):
             metinler.append(sonuc["body"])
         if sonuc.get("href") and sonuc.get("title"):
             baslik = sonuc["title"][:50]
-            # Güvenilir kaynaklara rozet ekle
             if kaynak_guvenilir_mi(sonuc["href"]):
                 baslik = "🛡️ " + baslik
             kaynaklar.append({"url": sonuc["href"], "baslik": baslik})
@@ -211,129 +285,152 @@ def cevap_uret(soru):
 # SOHBET YÖNETİMİ
 SOHBET_DOSYA = "sohbetler.json"
 
-def yukle():
+def sohbetleri_yukle():
     if os.path.exists(SOHBET_DOSYA):
         with open(SOHBET_DOSYA, "r", encoding="utf-8") as f:
             return json.load(f)
     return []
 
-def kaydet(sohbetler):
+def sohbetleri_kaydet(sohbetler):
     with open(SOHBET_DOSYA, "w", encoding="utf-8") as f:
         json.dump(sohbetler, f, ensure_ascii=False, indent=2)
 
-if "kullanici" not in st.session_state:
-    st.session_state.kullanici = None
-if "isim_sor" not in st.session_state:
-    st.session_state.isim_sor = True
+def yeni_sohbet_olustur(adi):
+    return {"id": int(time.time()*1000), "baslik": adi, "mesajlar": [], "tarih": time.time()}
+
+# SESSION STATE
+if "kullanici_adi" not in st.session_state:
+    st.session_state.kullanici_adi = None
+if "isim_bekleniyor" not in st.session_state:
+    st.session_state.isim_bekleniyor = True
 if "sohbetler" not in st.session_state:
-    st.session_state.sohbetler = yukle()
-if "aktif" not in st.session_state:
-    st.session_state.aktif = st.session_state.sohbetler[0]["id"] if st.session_state.sohbetler else None
-if "sayac" not in st.session_state:
-    st.session_state.sayac = 0
+    st.session_state.sohbetler = sohbetleri_yukle()
+if "aktif_id" not in st.session_state:
+    if st.session_state.sohbetler:
+        st.session_state.aktif_id = st.session_state.sohbetler[0]["id"]
+    else:
+        st.session_state.aktif_id = None
+if "disi_sayac" not in st.session_state:
+    st.session_state.disi_sayac = 0
 
 def aktif_sohbet():
     for s in st.session_state.sohbetler:
-        if s["id"] == st.session_state.aktif:
+        if s["id"] == st.session_state.aktif_id:
             return s
     return None
 
-def yeni_sohbet():
-    return {"id": int(time.time()*1000), "baslik": "Yeni Sohbet", "mesajlar": []}
-
 # SIDEBAR
 with st.sidebar:
-    st.markdown("### 💬 Sohbetler")
+    st.markdown('<div class="sb-baslik">💬 Sohbetler</div>', unsafe_allow_html=True)
+    
     if st.button("➕ Yeni Sohbet", use_container_width=True):
-        yeni = yeni_sohbet()
+        yeni = yeni_sohbet_olustur("Yeni Sohbet")
         st.session_state.sohbetler.insert(0, yeni)
-        st.session_state.aktif = yeni["id"]
-        kaydet(st.session_state.sohbetler)
+        st.session_state.aktif_id = yeni["id"]
+        sohbetleri_kaydet(st.session_state.sohbetler)
         st.rerun()
     
     st.markdown("---")
+    
     for s in st.session_state.sohbetler:
         col1, col2 = st.columns([0.8, 0.2])
         with col1:
             if st.button(s["baslik"][:25], key=f"sb_{s['id']}"):
-                st.session_state.aktif = s["id"]
+                st.session_state.aktif_id = s["id"]
                 st.rerun()
         with col2:
             if st.button("🗑️", key=f"del_{s['id']}"):
                 st.session_state.sohbetler = [x for x in st.session_state.sohbetler if x["id"] != s["id"]]
-                if st.session_state.aktif == s["id"]:
-                    st.session_state.aktif = st.session_state.sohbetler[0]["id"] if st.session_state.sohbetler else None
-                kaydet(st.session_state.sohbetler)
+                if st.session_state.aktif_id == s["id"]:
+                    st.session_state.aktif_id = st.session_state.sohbetler[0]["id"] if st.session_state.sohbetler else None
+                sohbetleri_kaydet(st.session_state.sohbetler)
                 st.rerun()
     
     st.markdown("---")
     st.caption("🔍 Güvenilir kaynaklar: MEB, EBA, Derslig, Khan Academy")
-    if st.session_state.kullanici:
-        st.markdown(f"👤 {st.session_state.kullanici}")
+    
+    if st.session_state.kullanici_adi:
+        st.markdown(f"<div style='text-align:center;margin-top:20px;padding:10px;background:rgba(102,126,234,0.2);border-radius:15px;'>👤 {st.session_state.kullanici_adi}</div>", unsafe_allow_html=True)
 
-# İSİM SORMA
-if st.session_state.isim_sor:
-    st.markdown('<div class="isim-ekran"><h2>🤖 Hoş Geldin!</h2><p>Ben NumBot, adını öğrenebilir miyim?</p></div>', unsafe_allow_html=True)
+# İSİM SORMA EKRANI
+if st.session_state.isim_bekleniyor:
+    st.markdown('<div class="isim-ekran"><h2>🤖 Hoş Geldin!</h2><p>Ben NumBot, sana nasıl hitap edeyim?</p></div>', unsafe_allow_html=True)
     isim = st.text_input("", placeholder="Adını yaz...", label_visibility="collapsed")
     if st.button("Başlayalım!"):
         if isim.strip():
-            st.session_state.kullanici = isim.strip()
-            st.session_state.isim_sor = False
+            st.session_state.kullanici_adi = isim.strip()
+            st.session_state.isim_bekleniyor = False
             if not st.session_state.sohbetler:
-                st.session_state.sohbetler.append(yeni_sohbet())
-                st.session_state.aktif = st.session_state.sohbetler[0]["id"]
-                kaydet(st.session_state.sohbetler)
+                yeni = yeni_sohbet_olustur("Yeni Sohbet")
+                st.session_state.sohbetler.append(yeni)
+                st.session_state.aktif_id = yeni["id"]
+                sohbetleri_kaydet(st.session_state.sohbetler)
             st.rerun()
     st.stop()
 
 # ANA ALAN
-ad = st.session_state.kullanici or "Öğrenci"
+ad = st.session_state.kullanici_adi or "Öğrenci"
 st.markdown(f'<div class="ana-baslik">🤖 Merhaba, {ad}!</div>', unsafe_allow_html=True)
-st.markdown('<div style="text-align:center;color:#888;margin-bottom:20px">NumBot | MEB Müfredatına Uygun | Güvenilir Kaynaklar</div>', unsafe_allow_html=True)
+st.markdown('<div class="ana-alt">NumBot | MEB Müfredatına Uygun | Güvenilir Kaynaklar</div>', unsafe_allow_html=True)
 
 sohbet = aktif_sohbet()
+
 if sohbet is None:
-    st.info("💡 Yeni sohbet için sol menüdeki ➕ butonuna tıklayın.")
+    st.info("💡 Başlamak için sol menüdeki **➕ Yeni Sohbet** butonuna tıklayın.")
 else:
     for m in sohbet["mesajlar"]:
         if m["rol"] == "kullanici":
-            st.markdown(f'<div style="text-align:right; margin:10px 0"><div class="mesaj-kullanici">👤 {m["icerik"]}</div></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="mesaj-kullanici"><span>{m["icerik"]}</span></div>', unsafe_allow_html=True)
         else:
-            st.markdown(f'<div class="mesaj-asistan">🤖 {m["icerik"]}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="mesaj-asistan"><div class="cevap-kutu">{m["icerik"]}</div>', unsafe_allow_html=True)
             if m.get("kaynaklar"):
-                html = '<div style="margin-top:10px">'
+                html = '<div style="margin-top:8px">'
                 for k in m["kaynaklar"][:3]:
                     html += f'<a class="kaynak-kart" href="{k["url"]}" target="_blank">🔗 {k["baslik"]}</a> '
                 html += '</div>'
                 st.markdown(html, unsafe_allow_html=True)
-            if m.get("video"):
-                st.markdown(f'<a class="kaynak-kart" href="{m["video"]}" target="_blank" style="background:#ff6b6b;color:white">🎬 YouTube\'da Ara</a>', unsafe_allow_html=True)
+            if m.get("video_link"):
+                st.markdown(f'<div class="video-oneri"><a href="{m["video_link"]}" target="_blank">🎬 YouTube\'da Ara</a></div>', unsafe_allow_html=True)
             if m.get("uyari"):
-                st.markdown(f'<div style="background:rgba(255,200,100,0.1);border-radius:10px;padding:8px;margin-top:8px;color:#ffd966">⚠️ {m["uyari"]}</div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="uyari-kutu">⚠️ {m["uyari"]}</div>', unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)
     
     girdi = st.chat_input(f"{ad}, ders sorusu sorabilirsin...")
     if girdi:
         msg = girdi.strip()
-        sohbet["mesajlar"].append({"rol": "kullanici", "icerik": msg})
-        
-        if sohbet["baslik"] == "Yeni Sohbet" and len(sohbet["mesajlar"]) == 1:
-            sohbet["baslik"] = msg[:25]
-        
-        tur = mesaj_turu(msg)
-        
-        if tur == "egitim":
-            st.session_state.sayac = 0
-            with st.spinner("📚 Güvenilir kaynaklardan araştırılıyor..."):
-                cevap, kaynaklar, video = cevap_uret(msg)
-            sohbet["mesajlar"].append({"rol": "asistan", "icerik": cevap, "kaynaklar": kaynaklar, "video": video})
-        else:
-            st.session_state.sayac += 1
-            cevap = diyalog_cevap(tur)
-            uyari = None
-            if st.session_state.sayac >= 3:
-                uyari = "💡 Sohbet güzel ama ders sorusu da sorabilirsin."
-                st.session_state.sayac = 0
-            sohbet["mesajlar"].append({"rol": "asistan", "icerik": cevap, "uyari": uyari})
-        
-        kaydet(st.session_state.sohbetler)
-        st.rerun()
+        if msg:
+            sohbet["mesajlar"].append({"rol": "kullanici", "icerik": msg})
+            
+            if sohbet["baslik"] == "Yeni Sohbet" and len(sohbet["mesajlar"]) == 1:
+                sohbet["baslik"] = msg[:25] + ("..." if len(msg) > 25 else "")
+                sohbetleri_kaydet(st.session_state.sohbetler)
+            
+            tur = mesaj_turu_tespit(msg)
+            
+            if tur == "egitim":
+                st.session_state.disi_sayac = 0
+                with st.spinner("🔍 NumBot güvenilir kaynaklardan araştırıyor..."):
+                    cevap, kaynaklar, video = cevap_uret(msg)
+                sohbet["mesajlar"].append({
+                    "rol": "asistan",
+                    "icerik": cevap,
+                    "kaynaklar": kaynaklar,
+                    "video_link": video,
+                    "tur": "egitim"
+                })
+            else:
+                st.session_state.disi_sayac += 1
+                cevap = diyalog_cevap(tur)
+                uyari = None
+                if st.session_state.disi_sayac >= 3:
+                    uyari = random.choice(DERS_DISI_UYARI)
+                    st.session_state.disi_sayac = 0
+                sohbet["mesajlar"].append({
+                    "rol": "asistan",
+                    "icerik": cevap,
+                    "tur": "diyalog",
+                    "uyari": uyari
+                })
+            
+            sohbetleri_kaydet(st.session_state.sohbetler)
+            st.rerun()
