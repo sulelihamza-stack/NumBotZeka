@@ -1,15 +1,7 @@
 import streamlit as st
-import requests
-from bs4 import BeautifulSoup
 import time
 import re
 import random
-import json
-import os
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
-import numpy as np
 from duckduckgo_search import DDGS
 from groq import Groq
 
@@ -62,12 +54,12 @@ DIYALOG_ANAHTAR = {
 }
 
 EGITIM_ANAHTAR = [
-    "tam sayı", "denklem", "oran", "yüzde", "kesir", "açı", "üçgen", "alan",
-    "zarf", "zamir", "fiil", "isim", "sıfat", "noktalama", "cümle",
+    "zarf", "zarflar", "zamir", "fiil", "isim", "sıfat", "edat", "bağlaç",
+    "tam sayı", "denklem", "oran", "yüzde", "kesir", "açı", "üçgen",
     "fotosentez", "mitoz", "hücre", "dna", "basınç", "elektrik",
-    "tarih", "coğrafya", "iklim", "harita", "cumhuriyet",
-    "simple present", "past tense", "pronoun", "verb",
-    "nedir", "nasıl", "açıkla", "anlat", "çöz", "konu"
+    "tarih", "coğrafya", "iklim", "cumhuriyet",
+    "simple present", "past tense", "pronoun",
+    "nedir", "nasıl", "açıkla", "anlat", "çöz"
 ]
 
 def mesaj_turu_tespit(mesaj: str) -> str:
@@ -85,99 +77,35 @@ def diyalog_cevap(tur: str) -> str:
 
 def konu_basligi_cikar(soru: str) -> str:
     soru_lower = soru.lower()
+    if "zarf" in soru_lower: return "Zarflar (Dilbilgisi)"
     if "tam sayı" in soru_lower: return "Tam Sayılar"
-    if "zarf" in soru_lower: return "Zarflar (Türkçe)"
     if "denklem" in soru_lower: return "Denklemler"
     if "fotosentez" in soru_lower: return "Fotosentez"
+    if "mitoz" in soru_lower: return "Mitoz Bölünme"
     return soru[:30] + ("..." if len(soru) > 30 else "")
 
 # --------------------------------------------------------------
-# SAYFA İÇERİĞİ ÇEKME (GÜÇLÜ)
-# --------------------------------------------------------------
-def sayfa_metni_al(url: str) -> str:
-    try:
-        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
-        r = requests.get(url, headers=headers, timeout=10)
-        r.encoding = "utf-8"
-        soup = BeautifulSoup(r.text, "html.parser")
-        for tag in soup(["script", "style", "nav", "footer", "header"]):
-            tag.decompose()
-        metin = " ".join([el.get_text(" ", strip=True) for el in soup.find_all(["p", "h2", "h3", "li"])])
-        return metin[:3000]
-    except:
-        return ""
-
-# --------------------------------------------------------------
-# DUCKDUCKGO ARAMA
+# DUCKDUCKGO ARAMA (ZORUNLU)
 # --------------------------------------------------------------
 @st.cache_data(ttl=3600, show_spinner=False)
 def duckduckgo_ara(sorgu: str, n: int = 6):
     try:
         with DDGS() as ddgs:
             return list(ddgs.text(f"{sorgu} 7. sınıf", region="tr-tr", max_results=n))
-    except:
+    except Exception as e:
         return []
 
 # --------------------------------------------------------------
-# TF-IDF FALLBACK (SAĞLAM)
-# --------------------------------------------------------------
-def tfidf_ozetle(soru: str, metin_parcalari: list) -> str:
-    if not metin_parcalari:
-        return "Bilgi bulunamadı."
-    
-    cumleler = []
-    for p in metin_parcalari:
-        cumleler += re.split(r'(?<=[.!?])\s+', p)
-    cumleler = [c.strip() for c in cumleler if len(c.strip()) > 40]
-    
-    if not cumleler:
-        return "Yeterli açıklama yok."
-    
-    try:
-        docs = [soru] + cumleler[:50]
-        vec = TfidfVectorizer(stop_words="turkish", max_features=500)
-        tfidf = vec.fit_transform(docs)
-        sim = cosine_similarity(tfidf[0:1], tfidf[1:]).flatten()
-        idx = np.argsort(sim)[::-1][:5]
-        secilen = [cumleler[i] for i in idx if sim[i] > 0.1]
-        return "\n\n".join(secilen[:4]) if secilen else cumleler[0]
-    except:
-        return "\n\n".join(cumleler[:4])
-
-# --------------------------------------------------------------
-# GROQ CEVAP
-# --------------------------------------------------------------
-def groq_cevap(soru: str, kaynak_metin: str) -> str:
-    try:
-        client = Groq(api_key=GROQ_API_KEY)
-        sistem = """Sen NumBot'sun, 7. sınıf öğrencisine yardım eden eğitim asistanısın.
-        Verilen bilgilere göre soruyu cevapla. Anlaşılır Türkçe kullan, madde işaretleri yap.
-        "Tam sayılar" matematik konusudur. "Zarflar" Türkçe dilbilgisi konusudur. SAKIN KARIŞTIRMA!"""
-        
-        yanit = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
-            messages=[
-                {"role": "system", "content": sistem},
-                {"role": "user", "content": f"Soru: {soru}\n\nBilgiler:\n{kaynak_metin[:4000]}"}
-            ],
-            max_tokens=700,
-            temperature=0.3
-        )
-        return yanit.choices[0].message.content.strip()
-    except:
-        return None
-
-# --------------------------------------------------------------
-# ANA CEVAP ÜRETİCİ (KAYNAKLI)
+# SADECE ARAMA SONUÇLARINI KULLAN (GROQ SADECE ÖZETLER)
 # --------------------------------------------------------------
 def cevap_uret(soru: str):
-    # 1. DuckDuckGo ara
+    # DuckDuckGo'da ara
     arama_sonuclari = duckduckgo_ara(soru, n=6)
     
     if not arama_sonuclari:
-        return "🔍 İnternette kaynak bulamadım. Lütfen farklı bir soru sor.", [], None, None
+        return "🔍 Üzgünüm, internette bu konuda kaynak bulamadım. Lütfen sorunu daha açık yaz veya farklı bir konu sor.", [], None
     
-    # 2. Özetleri ve sayfa içeriklerini topla
+    # Özetleri topla
     metin_parcalari = []
     kaynak_listesi = []
     
@@ -186,25 +114,48 @@ def cevap_uret(soru: str):
             metin_parcalari.append(sonuc["body"])
         if sonuc.get("url") and sonuc.get("title"):
             kaynak_listesi.append({"url": sonuc["url"], "baslik": sonuc["title"]})
-            # Sayfa içeriğini de çek (daha kaliteli bilgi)
-            sayfa_metni = sayfa_metni_al(sonuc["url"])
-            if sayfa_metni:
-                metin_parcalari.append(sayfa_metni)
-            time.sleep(0.3)
     
     if not metin_parcalari:
-        return "Kaynak metin bulunamadı.", [], None, None
+        return "Kaynak metin bulunamadı.", kaynak_listesi[:4], None
     
     ham_metin = "\n\n".join(metin_parcalari)
     
-    # 3. Önce Groq'u dene
-    cevap = groq_cevap(soru, ham_metin)
+    # Groq'u sadece arama sonuçlarını özetlemesi için kullan
+    try:
+        client = Groq(api_key=GROQ_API_KEY)
+        
+        sistem = """Sen NumBot'sun. Sana verilen internetteki arama sonuçlarını oku ve ÖZETLE.
+        KESİNLİKLE kendi bilgini kullanma, sadece verilen metni özetle.
+        Verilen metinde konu anlatımı varsa onu sadeleştir.
+        Verilen metinde konu yoksa veya yanlışsa, "Bu konuda doğru bilgi bulamadım" de.
+        
+        ÖNEMLİ KURALLAR:
+        - "Zarflar" dilbilgisi konusudur: fiillerin durumunu, zamanını, miktarını belirten kelimelerdir (örn: hızlı koştu, çok güzel, yarın gelecek)
+        - "Sıfatlar" isimleri niteler (örn: güzel ev, büyük araba)
+        - SAKIN zarf ile sıfatı karıştırma!
+        - Örnekler verirken doğru örnekler kullan."""
+        
+        yanit = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[
+                {"role": "system", "content": sistem},
+                {"role": "user", "content": f"Soru: {soru}\n\nArama Sonuçları:\n{ham_metin[:4500]}"}
+            ],
+            max_tokens=800,
+            temperature=0.2
+        )
+        
+        cevap = yanit.choices[0].message.content.strip()
+        
+        # Eğer cevap çok kısaysa veya anlamsızsa direkt arama sonuçlarını göster
+        if len(cevap) < 50 or "bilgi bulamadım" in cevap.lower():
+            cevap = "İnternette bulduğum bilgiler:\n\n" + "\n\n".join(metin_parcalari[:3])
+        
+    except Exception as e:
+        # Groq çalışmazsa direkt arama sonuçlarını göster
+        cevap = "İnternette bulduğum bilgiler:\n\n" + "\n\n".join(metin_parcalari[:3])
     
-    # 4. Groq çalışmazsa TF-IDF kullan
-    if not cevap:
-        cevap = tfidf_ozetle(soru, metin_parcalari)
-    
-    # 5. YouTube linki
+    # YouTube linki
     video_link = f"https://www.youtube.com/results?search_query=7.+sınıf+{soru.replace(' ', '+')}"
     
     return cevap, kaynak_listesi[:4], video_link
@@ -283,7 +234,7 @@ if st.session_state.isim_bekleniyor:
 # --------------------------------------------------------------
 ad = st.session_state.kullanici_adi or "Öğrenci"
 st.markdown(f'<div class="ana-baslik">🤖 Merhaba, {ad}!</div>', unsafe_allow_html=True)
-st.markdown('<div style="text-align:center;color:#888;margin-bottom:20px">NumBot | İnternette Araştırır, Kaynak ve Video Sunar</div>', unsafe_allow_html=True)
+st.markdown('<div style="text-align:center;color:#888;margin-bottom:20px">NumBot | İnternetten Araştırır, Doğru Bilgi Sunar</div>', unsafe_allow_html=True)
 
 sohbet = aktif_sohbet()
 
