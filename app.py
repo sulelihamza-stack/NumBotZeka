@@ -114,13 +114,32 @@ def diyalog_cevap(tur):
 SPOR_KELIMELERI = [
     "nba", "futbol", "basketbol", "maç", "takım", "lig", "şampiyon", "lakers",
     "galatasaray", "fenerbahçe", "beşiktaş", "spor", "karşılaşma", "skor", 
-    "gol", "sayı", "oyuncu", "transfer", "kupa", "galibiyet", "maçı"
+    "gol", "sayı", "oyuncu", "transfer", "kupa", "galibiyet", "maçı", "son dakika"
 ]
 
 def spor_icerik_mi(baslik, icerik):
     kontrol_metni = (baslik + " " + icerik).lower()
     for kelime in SPOR_KELIMELERI:
         if kelime in kontrol_metni:
+            return True
+    return False
+
+# --------------------------------------------------------------
+# TÜRKÇE SİTE KONTROLÜ
+# --------------------------------------------------------------
+def turkce_site_mi(url):
+    url_lower = url.lower()
+    # Türkçe site uzantıları
+    if ".tr" in url_lower:
+        return True
+    # Türkçe eğitim siteleri (uzantı .com olsa bile)
+    turkce_siteler = [
+        "eokultv", "derslig", "morpakampus", "okulistik", "tongucakademi",
+        "sinifogretmenim", "turkcedersi", "sosyalciniz", "konuvakti", "dersarsivi",
+        "meb", "eba", "odsgm"
+    ]
+    for site in turkce_siteler:
+        if site in url_lower:
             return True
     return False
 
@@ -175,7 +194,7 @@ def tfidf_ozet(soru, metinler):
 def groq_cevap(soru, metin):
     try:
         client = Groq(api_key=GROQ_API_KEY)
-        sistem = """Sen 7. sınıf öğrencilerine ders anlatan bir eğitim asistanısın.
+        sistem = """Sen 7. sınıf öğrencilerine ders anlatan bir eğitim asistanısın. NumBot'sun.
         Verilen metne göre soruyu cevapla.
         MEB müfredatına uygun, 7. sınıf seviyesinde anlaşılır Türkçe kullan.
         Örnekler ver, madde işaretleri kullan."""
@@ -194,7 +213,7 @@ def groq_cevap(soru, metin):
         return None
 
 # --------------------------------------------------------------
-# NORMAL ARAMA (SİTE FİLTRESİ YOK, SADECE SPOR ENGELLİ)
+# NORMAL ARAMA (SADECE TÜRKÇE SİTELER, YABANCI YOK)
 # --------------------------------------------------------------
 def normal_ara(soru):
     if any(k in soru.lower() for k in ["zarf", "zamir", "fiil", "isim", "sıfat", "dilbilgisi"]):
@@ -204,9 +223,26 @@ def normal_ara(soru):
     
     try:
         with DDGS() as ddgs:
-            sonuclar = list(ddgs.text(arama_sorgusu, region="tr-tr", max_results=6))
-            # Spor içeriklerini filtrele
-            return [s for s in sonuclar if not spor_icerik_mi(s.get("title",""), s.get("body",""))]
+            sonuclar = list(ddgs.text(arama_sorgusu, region="tr-tr", max_results=10))
+            
+            # SADECE TÜRKÇE SİTELERİ VE SPOR İÇERMEYENLERİ TUT
+            turkce_sonuclar = []
+            for s in sonuclar:
+                url = s.get("href", "").lower()
+                baslik = s.get("title", "").lower()
+                icerik = s.get("body", "").lower()
+                
+                # Yabancı siteleri engelle
+                if not turkce_site_mi(url):
+                    continue
+                
+                # Spor içerikleri engelle
+                if spor_icerik_mi(baslik, icerik):
+                    continue
+                
+                turkce_sonuclar.append(s)
+            
+            return turkce_sonuclar[:6]
     except:
         return []
 
@@ -217,7 +253,7 @@ def cevap_uret(soru):
     sonuclar = normal_ara(soru)
     
     if not sonuclar:
-        return "Üzgünüm, bu konuda internette bir şey bulamadım. Lütfen farklı bir soru sor.", [], None
+        return "Üzgünüm, bu konuda Türkçe kaynaklarda bir şey bulamadım. Lütfen farklı bir soru sor.", [], None
     
     metinler = []
     kaynaklar = []
@@ -323,7 +359,7 @@ with st.sidebar:
                 st.rerun()
     
     st.markdown("---")
-    st.caption("🔍 NumBot - 7. Sınıf Eğitim Asistanı")
+    st.caption("🔍 NumBot - Sadece Türkçe Kaynaklar")
     
     if st.session_state.kullanici_adi:
         st.markdown(f"<div style='text-align:center;margin-top:20px;padding:10px;background:rgba(102,126,234,0.2);border-radius:15px;'>👤 {st.session_state.kullanici_adi}</div>", unsafe_allow_html=True)
@@ -351,7 +387,7 @@ if st.session_state.isim_bekleniyor:
 # --------------------------------------------------------------
 ad = st.session_state.kullanici_adi or "Öğrenci"
 st.markdown(f'<div class="ana-baslik">🤖 Merhaba, {ad}!</div>', unsafe_allow_html=True)
-st.markdown('<div class="ana-alt">NumBot | 7. Sınıf Yapay Zeka Eğitim Asistanı</div>', unsafe_allow_html=True)
+st.markdown('<div class="ana-alt">NumBot | 7. Sınıf Yapay Zeka Eğitim Asistanı | Sadece Türkçe Kaynaklar</div>', unsafe_allow_html=True)
 
 sohbet = aktif_sohbet()
 
@@ -389,7 +425,7 @@ else:
             
             if tur == "egitim":
                 st.session_state.disi_sayac = 0
-                with st.spinner("🔍 NumBot internette araştırıyor..."):
+                with st.spinner("🔍 NumBot Türkçe kaynaklarda araştırıyor..."):
                     cevap, kaynaklar, video = cevap_uret(msg)
                 sohbet["mesajlar"].append({
                     "rol": "asistan",
