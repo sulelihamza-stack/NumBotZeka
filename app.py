@@ -7,11 +7,16 @@ import os
 from duckduckgo_search import DDGS
 from groq import Groq
 
+# --------------------------------------------------------------
+# GROQ API KEY
+# --------------------------------------------------------------
 GROQ_API_KEY = "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"
 
 st.set_page_config(page_title="NumBot - 7. Sınıf Eğitim Asistanı", page_icon="🤖", layout="wide")
 
-# Siyah tema (kısa versiyon)
+# --------------------------------------------------------------
+# SİYAH TEMA
+# --------------------------------------------------------------
 st.markdown("""
 <style>
 .stApp, [data-testid="stAppViewContainer"] { background: #000000 !important; }
@@ -30,67 +35,59 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --------------------------------------------------------------
-# OFFLINE KONU HAVUZU (YEDEK - TÜM DERSLER)
+# SADECE TÜRK EĞİTİM SİTELERİ (SPOR YOK)
 # --------------------------------------------------------------
-KONU_HAVUZU = {
-    "zarf": "📚 **Zarflar (Belirteçler) - 7. Sınıf Türkçe**\n\nZarflar, fiilleri zaman, durum, miktar, yer-yön, soru yönünden belirtir.\n\n**Türleri:** Durum (hızlı koştu), Zaman (yarın gelecek), Miktar (çok okudu), Yer-Yön (içeri girdi), Soru (nasıl geldi?).",
-    "tam sayı": "📚 **Tam Sayılar - 7. Sınıf Matematik**\n\nTam sayılar pozitif, negatif ve sıfırdan oluşur.\nToplama: Aynı işaretli toplanır. (-8)+(+3)=-5\nÇıkarma: (+5)-(-3)=+8\nÇarpma/Bölme: (-4)×(-2)=+8, (-4)×(+2)=-8",
-    "fotosentez": "📚 **Fotosentez - 7. Sınıf Fen Bilimleri**\n\nFotosentez, bitkilerin güneş ışığıyla CO₂ ve H₂O'dan glikoz ve O₂ üretmesidir.\nDenklem: 6CO₂ + 6H₂O → C₆H₁₂O₆ + 6O₂",
-    "mitoz": "📚 **Mitoz Bölünme - 7. Sınıf Fen Bilimleri**\n\n1 hücre → 2 hücre, kromozom sayısı değişmez. Evreleri: İnterfaz, Profaz, Metafaz, Anafaz, Telofaz.",
-    "denklem": "📚 **Denklemler - 7. Sınıf Matematik**\n\nDenklem, içinde bilinmeyen bulunan eşitliktir. Örnek: 2x+3=7 → x=2",
-    "üretim": "📚 **Üretim, Dağıtım, Tüketim - 7. Sınıf Sosyal Bilgiler**\n\nÜretim: mal/hizmet oluşturma. Dağıtım: tüketiciye ulaştırma. Tüketim: kullanma.",
-    "simple present": "📚 **Simple Present Tense - 7. Sınıf İngilizce**\n\nGenel durumlar ve alışkanlıklar. Olumlu: I/You/We/They play, He/She/It plays. Olumsuz: don't/doesn't + fiil."
-}
+EGITIM_SITELERI = [
+    "meb.gov.tr", "eba.gov.tr", "odsgm.meb.gov.tr",
+    "derslig.com", "morpakampus.com", "okulistik.com",
+    "tongucakademi.com", "khanacademy.org.tr", "eokultv.com",
+    "sinifogretmenim.com", "turkcedersi.net", "sosyalciniz.net"
+]
 
-def offline_cevap(soru):
-    soru_lower = soru.lower()
-    for anahtar, cevap in KONU_HAVUZU.items():
-        if anahtar in soru_lower:
-            return cevap
-    return None
+SPOR_KELIMELER = ["nba", "futbol", "basketbol", "maç", "takım", "lig", "şampiyon", "lakers", "galatasaray", "fenerbahçe", "beşiktaş", "premier league", "spor", "gol", "transfer"]
+
+def spor_mu(baslik, icerik):
+    kontrol = (baslik + " " + icerik).lower()
+    for kelime in SPOR_KELIMELER:
+        if kelime in kontrol:
+            return True
+    return False
 
 # --------------------------------------------------------------
-# İNTERNETTEN ARAMA (SADECE TÜRKÇE EĞİTİM SİTELERİ)
+# ARAMA (SADECE EĞİTİM SİTELERİ)
 # --------------------------------------------------------------
-def turkce_egitim_sitesi_mi(url):
-    if not url:
-        return False
-    url_lower = url.lower()
-    turkce_siteler = [".tr", "meb", "eba", "derslig", "morpakampus", "okulistik", "tongucakademi", "khanacademy.org.tr", "eokultv", "sinifogretmenim", "turkcedersi"]
-    return any(site in url_lower for site in turkce_siteler)
+@st.cache_data(ttl=3600, show_spinner=False)
+def egitim_sitelerinde_ara(soru):
+    tum_sonuclar = []
+    for site in EGITIM_SITELERI:
+        sorgu = f"site:{site} {soru} 7 sınıf konu anlatımı"
+        try:
+            with DDGS() as ddgs:
+                sonuc = list(ddgs.text(sorgu, region="tr-tr", max_results=2))
+                for s in sonuc:
+                    baslik = s.get("title", "")
+                    icerik = s.get("body", "")
+                    if not spor_mu(baslik, icerik):
+                        tum_sonuclar.append(s)
+        except:
+            pass
+        time.sleep(0.1)
+    return tum_sonuclar[:4]
 
-def internetten_ara(soru):
-    try:
-        sorgu = f"{soru} 7 sınıf konu anlatımı"
-        with DDGS() as ddgs:
-            sonuclar = list(ddgs.text(sorgu, region="tr-tr", max_results=6))
-            
-            # Türkçe eğitim sitelerini filtrele
-            turkce_sonuclar = [s for s in sonuclar if turkce_egitim_sitesi_mi(s.get("href"))]
-            if not turkce_sonuclar:
-                turkce_sonuclar = sonuclar[:3]
-            
-            if not turkce_sonuclar:
-                return None, None
-            
-            metin = ""
-            kaynaklar = []
-            for s in turkce_sonuclar[:3]:
-                if s.get("body"):
-                    metin += s["body"] + "\n\n"
-                if s.get("href"):
-                    kaynaklar.append(s["href"])
-            return metin[:3000], kaynaklar
-    except:
-        return None, None
-
-def groq_cevap(soru, ham_metin):
+def groq_cevap(soru, metin):
     try:
         client = Groq(api_key=GROQ_API_KEY)
-        sistem = "Sen 7. sınıf öğrencilerine ders anlatan bir eğitim asistanısın. Verilen metne göre soruyu cevapla. MEB müfredatına uygun, anlaşılır Türkçe kullan."
+        sistem = """Sen 7. sınıf öğrencilerine ders anlatan bir eğitim asistanısın.
+        Verilen metne göre soruyu cevapla. MEB müfredatına uygun, anlaşılır Türkçe kullan.
+        Örnekler ver, madde işaretleri kullan.
+        ASLA spor, futbol, basketbol, NBA, Premier League ile ilgili örnek verme.
+        Sadece ders konularına odaklan."""
         yanit = client.chat.completions.create(
             model="llama-3.1-8b-instant",
-            messages=[{"role": "system", "content": sistem}, {"role": "user", "content": f"Soru: {soru}\n\nBilgiler:\n{ham_metin}"}],
+            messages=[
+                {"role": "system", "content": sistem},
+                {"role": "user", "content": f"Soru: {soru}\n\nBilgiler:\n{metin[:3500]}"}
+            ],
             max_tokens=600,
             temperature=0.3
         )
@@ -99,36 +96,42 @@ def groq_cevap(soru, ham_metin):
         return None
 
 def cevap_uret(soru):
-    # Önce internetten dene
-    ham_metin, kaynaklar = internetten_ara(soru)
-    if ham_metin:
-        cevap = groq_cevap(soru, ham_metin)
-        if cevap:
-            if kaynaklar:
-                cevap += "\n\n📚 **Kaynaklar:**\n" + "\n".join(kaynaklar)
-            return cevap
-        else:
-            return "Üzgünüm, cevap üretirken bir sorun oluştu. Lütfen tekrar dener misin?", None
+    sonuclar = egitim_sitelerinde_ara(soru)
+    if not sonuclar:
+        return "🔍 Bu konuda güvenilir eğitim sitelerinde (MEB, Derslig, Morpa, Tonguç, Khan Academy) bilgi bulamadım. Lütfen farklı bir soru sor.", None
     
-    # İnternet yoksa offline havuz
-    offline = offline_cevap(soru)
-    if offline:
-        return offline + "\n\n📌 (İnternet bağlantısı olmadığı için hazır bilgilerden yararlanıldı.)", None
+    metin = ""
+    kaynaklar = []
+    for s in sonuclar:
+        if s.get("body"):
+            metin += s["body"] + "\n\n"
+        if s.get("href"):
+            kaynaklar.append(s["href"])
     
-    return "🔍 Bu konuda internette veya hazır bilgilerimde bir şey bulamadım. Lütfen farklı bir soru sor.", None
+    if not metin:
+        return "İçerik alınamadı.", None
+    
+    cevap = groq_cevap(soru, metin)
+    if not cevap:
+        cevap = "Üzgünüm, cevap üretilemedi. Lütfen tekrar dene."
+    
+    if kaynaklar:
+        cevap += "\n\n📚 **Kaynaklar:**\n" + "\n".join([f"🔗 {k}" for k in kaynaklar[:3]])
+    
+    return cevap, kaynaklar
 
 # --------------------------------------------------------------
 # DİYALOG SİSTEMİ
 # --------------------------------------------------------------
 DIYALOG_KALIPLARI = {
-    "selam": ["✨ Selam! Ben NumBot, sana nasıl yardımcı olabilirim?", "👋 Merhaba! Ders çalışmaya hazır mısın?"],
+    "selam": ["✨ Selam! Ben NumBot, 7. sınıf derslerinde sana yardımcı olabilirim.", "👋 Merhaba! Ders sorusu sorabilirsin."],
     "nasilsin": ["💫 İyiyim, teşekkürler! Sen nasılsın?", "🎯 Harika hissediyorum!"],
     "iyi": ["🎉 Ne güzel! O zaman bir ders sorusu soralım.", "⭐ Süper! Hadi öğrenmeye başlayalım."],
-    "kötü": ["😔 Üzgünüm... Birlikte çalışırsak daha iyi hissedersin.", "💪 Geçer, merak etme!"],
+    "kötü": ["😔 Üzgünüm... Birlikte çalışalım, daha iyi hissedersin.", "💪 Geçer, merak etme!"],
     "teşekkür": ["🤗 Rica ederim! Başka sorun olursa buradayım.", "💖 Ne demek!"],
     "kim": ["🤖 Ben NumBot! 7. sınıf yapay zeka eğitim asistanın.", "🧠 NumBot - eğitim asistanın!"],
-    "ne yapabilirsin": ["🔍 İnternette güvenilir Türk eğitim sitelerinde araştırma yapıp sorularını cevaplarım.", "🌐 MEB, EBA, Derslig, Morpa, Okulistik, Tonguç gibi sitelerden bilgi toplarım."],
-    "default": ["💭 Ders sorusu sorabilir misin? Matematik, Türkçe, Fen, Sosyal, İngilizce.", "📖 Bir konuyu sana anlatmamı ister misin?"]
+    "ne yapabilirsin": ["🔍 Sadece güvenilir eğitim sitelerinde (MEB, Derslig, Morpa, Tonguç) araştırma yaparım.", "📚 7. sınıf tüm derslerde sana yardımcı olurum."],
+    "default": ["💭 Ders sorusu sorabilir misin? İnternette güvenilir kaynaklardan araştırayım.", "📖 Bir konuyu sana anlatmamı ister misin?"]
 }
 
 DIYALOG_ANAHTAR = {
@@ -157,14 +160,17 @@ def diyalog_cevap(tur):
     return random.choice(DIYALOG_KALIPLARI.get(anahtar, DIYALOG_KALIPLARI["default"]))
 
 # --------------------------------------------------------------
-# SOHBET YÖNETİMİ (JSON)
+# SOHBET YÖNETİMİ (JSON) - KESİN ÇALIŞIR
 # --------------------------------------------------------------
 SOHBET_DOSYA = "sohbetler.json"
 
 def sohbetleri_yukle():
     if os.path.exists(SOHBET_DOSYA):
-        with open(SOHBET_DOSYA, "r", encoding="utf-8") as f:
-            return json.load(f)
+        try:
+            with open(SOHBET_DOSYA, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except:
+            return []
     else:
         with open(SOHBET_DOSYA, "w", encoding="utf-8") as f:
             json.dump([], f, ensure_ascii=False, indent=2)
@@ -205,13 +211,16 @@ def aktif_sohbet():
 # --------------------------------------------------------------
 with st.sidebar:
     st.markdown('<div class="sb-baslik">💬 Sohbetler</div>', unsafe_allow_html=True)
+    
     if st.button("➕ Yeni Sohbet", use_container_width=True):
         yeni = yeni_sohbet_olustur("Yeni Sohbet")
         st.session_state.sohbetler.insert(0, yeni)
         st.session_state.aktif_id = yeni["id"]
         sohbetleri_kaydet(st.session_state.sohbetler)
         st.rerun()
+    
     st.markdown("---")
+    
     for s in st.session_state.sohbetler:
         col1, col2 = st.columns([0.8, 0.2])
         with col1:
@@ -225,8 +234,10 @@ with st.sidebar:
                     st.session_state.aktif_id = st.session_state.sohbetler[0]["id"] if st.session_state.sohbetler else None
                 sohbetleri_kaydet(st.session_state.sohbetler)
                 st.rerun()
+    
     st.markdown("---")
-    st.caption("🔍 Sadece güvenilir Türk eğitim sitelerinde araştırma yapar.")
+    st.caption("🔍 Sadece güvenilir eğitim siteleri (MEB, Derslig, Morpa, Tonguç)")
+    
     if st.session_state.kullanici_adi:
         st.markdown(f"<div style='text-align:center;margin-top:20px;padding:10px;background:rgba(102,126,234,0.2);border-radius:15px;'>👤 {st.session_state.kullanici_adi}</div>", unsafe_allow_html=True)
 
@@ -253,7 +264,7 @@ if st.session_state.isim_bekleniyor:
 # --------------------------------------------------------------
 ad = st.session_state.kullanici_adi or "Öğrenci"
 st.markdown(f'<div class="ana-baslik">🤖 Merhaba, {ad}!</div>', unsafe_allow_html=True)
-st.markdown('<div class="ana-alt">NumBot | 7. Sınıf Yapay Zeka Eğitim Asistanı | Güvenilir Türk Sitelerinde Araştırır</div>', unsafe_allow_html=True)
+st.markdown('<div class="ana-alt">NumBot | 7. Sınıf Eğitim Asistanı | Sadece Güvenilir Eğitim Siteleri</div>', unsafe_allow_html=True)
 
 sohbet = aktif_sohbet()
 
@@ -284,9 +295,9 @@ else:
             
             if tur == "egitim":
                 st.session_state.disi_sayac = 0
-                with st.spinner("🔍 NumBot güvenilir Türk eğitim sitelerinde araştırıyor..."):
-                    cevap = cevap_uret(msg)
-                sohbet["mesajlar"].append({"rol": "asistan", "icerik": cevap, "tur": "egitim"})
+                with st.spinner("🔍 NumBot güvenilir eğitim sitelerinde araştırıyor..."):
+                    cevap, kaynaklar = cevap_uret(msg)
+                sohbet["mesajlar"].append({"rol": "asistan", "icerik": cevap, "tur": "egitim", "kaynaklar": kaynaklar})
                 sohbetleri_kaydet(st.session_state.sohbetler)
             else:
                 st.session_state.disi_sayac += 1
