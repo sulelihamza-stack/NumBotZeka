@@ -1,24 +1,16 @@
 import streamlit as st
-import time
-import re
-import random
 import json
 import os
-import requests
-from groq import Groq
+import time
+from tavily import TavilyClient
 
-# --------------------------------------------------------------
-# GOOGLE CSE BİLGİLERİ (SENİN VERDİKLERİN)
-# --------------------------------------------------------------
-SEARCH_ENGINE_ID = "230f6376b7740411d"
-API_KEY = "AIzaSyA0_BxAEG2pcd0SdwhzanArxQq6gF84TvE"
-GROQ_API_KEY = "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"
+# --- API Anahtarını secrets'dan al (Streamlit Cloud) ---
+TAVILY_API_KEY = st.secrets["TAVILY_API_KEY"]
+tavily = TavilyClient(api_key=TAVILY_API_KEY)
 
-st.set_page_config(page_title="NumBot - 7. Sınıf Eğitim Asistanı", page_icon="🤖", layout="wide")
+st.set_page_config(page_title="NumBot - 7. Sınıf Asistanı", page_icon="🤖", layout="wide")
 
-# --------------------------------------------------------------
-# SİYAH TEMA
-# --------------------------------------------------------------
+# --- Siyah Tema CSS ---
 st.markdown("""
 <style>
 .stApp, [data-testid="stAppViewContainer"] { background: #000000 !important; }
@@ -36,148 +28,14 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --------------------------------------------------------------
-# SPOR FİLTRESİ
-# --------------------------------------------------------------
-SPOR_KELIMELER = ["nba", "futbol", "basketbol", "maç", "takım", "lig", "şampiyon", "lakers", "galatasaray", "fenerbahçe", "beşiktaş", "premier league", "spor", "gol", "transfer", "trabzonspor", "başakşehir", "süper lig", "şampiyonlar ligi"]
-
-def spor_mu(baslik, icerik):
-    kontrol = (baslik + " " + icerik).lower()
-    for kelime in SPOR_KELIMELER:
-        if kelime in kontrol:
-            return True
-    return False
-
-# --------------------------------------------------------------
-# GOOGLE CSE ARAMA (GERÇEK API ÇAĞRISI)
-# --------------------------------------------------------------
-@st.cache_data(ttl=3600, show_spinner=False)
-def google_cse_ara(soru):
-    sorgu = f"{soru} 7 sınıf konu anlatımı"
-    url = f"https://www.googleapis.com/customsearch/v1?key={API_KEY}&cx={SEARCH_ENGINE_ID}&q={sorgu}&lr=lang_tr"
-    
-    try:
-        response = requests.get(url, timeout=10)
-        response.raise_for_status()
-        data = response.json()
-        
-        if "items" not in data:
-            st.warning("Google CSE sonuç bulamadı. Yanıt: " + str(data))
-            return None, None
-        
-        metin = ""
-        kaynaklar = []
-        for item in data["items"][:3]:
-            baslik = item.get("title", "")
-            snippet = item.get("snippet", "")
-            link = item.get("link", "")
-            
-            if spor_mu(baslik, snippet):
-                continue
-            
-            metin += f"{baslik}\n{snippet}\n\n"
-            kaynaklar.append(link)
-        
-        if not metin:
-            return None, None
-        return metin[:3000], kaynaklar
-    except Exception as e:
-        st.error(f"Google CSE hatası: {e}")
-        return None, None
-
-# --------------------------------------------------------------
-# GROQ SENTEZ
-# --------------------------------------------------------------
-def groq_cevap(soru, metin):
-    try:
-        client = Groq(api_key=GROQ_API_KEY)
-        sistem = """Sen 7. sınıf öğrencilerine ders anlatan bir eğitim asistanısın.
-        Verilen metne göre soruyu cevapla. MEB müfredatına uygun, anlaşılır Türkçe kullan.
-        Örnekler ver, madde işaretleri kullan.
-        ASLA spor (futbol, basketbol, NBA, Premier League, Süper Lig) ile ilgili örnek verme.
-        Sadece ders konularına odaklan."""
-        yanit = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
-            messages=[
-                {"role": "system", "content": sistem},
-                {"role": "user", "content": f"Soru: {soru}\n\nBilgiler:\n{metin[:3500]}"}
-            ],
-            max_tokens=600,
-            temperature=0.3
-        )
-        return yanit.choices[0].message.content.strip()
-    except Exception as e:
-        st.error(f"Groq hatası: {e}")
-        return None
-
-def cevap_uret(soru):
-    metin, kaynaklar = google_cse_ara(soru)
-    if not metin:
-        return "🔍 Bu konuda güvenilir eğitim sitelerinde (MEB, Derslig, Morpa, Okulistik, Tonguç) bilgi bulamadım. Lütfen farklı bir soru sor.", None
-    
-    cevap = groq_cevap(soru, metin)
-    if not cevap:
-        cevap = "Üzgünüm, cevap üretilemedi. Lütfen tekrar dene."
-    
-    if kaynaklar:
-        cevap += "\n\n📚 **Kaynaklar:**\n" + "\n".join([f"🔗 {k}" for k in kaynaklar[:3]])
-    
-    return cevap, kaynaklar
-
-# --------------------------------------------------------------
-# DİYALOG SİSTEMİ (Kısa)
-# --------------------------------------------------------------
-DIYALOG_KALIPLARI = {
-    "selam": ["✨ Selam! Ben NumBot, 7. sınıf derslerinde sana yardımcı olabilirim.", "👋 Merhaba! Ders sorusu sorabilirsin."],
-    "nasilsin": ["💫 İyiyim, teşekkürler! Sen nasılsın?", "🎯 Harika hissediyorum!"],
-    "iyi": ["🎉 Ne güzel! O zaman bir ders sorusu soralım.", "⭐ Süper! Hadi öğrenmeye başlayalım."],
-    "kötü": ["😔 Üzgünüm... Birlikte çalışalım, daha iyi hissedersin.", "💪 Geçer, merak etme!"],
-    "teşekkür": ["🤗 Rica ederim! Başka sorun olursa buradayım.", "💖 Ne demek!"],
-    "kim": ["🤖 Ben NumBot! 7. sınıf yapay zeka eğitim asistanın.", "🧠 NumBot - eğitim asistanın!"],
-    "ne yapabilirsin": ["🔍 Sadece güvenilir eğitim sitelerinde (MEB, Derslig, Morpa, Okulistik, Tonguç) araştırma yaparım.", "📚 7. sınıf tüm derslerde sana yardımcı olurum."],
-    "default": ["💭 Ders sorusu sorabilir misin? İnternette güvenilir kaynaklardan araştırayım.", "📖 Bir konuyu sana anlatmamı ister misin?"]
-}
-
-DIYALOG_ANAHTAR = {
-    "selam": ["selam", "merhaba", "hey", "naber"],
-    "nasilsin": ["nasılsın", "iyi misin"],
-    "iyi": ["iyiyim", "iyi", "güzel"],
-    "kötü": ["kötüyüm", "kötü", "üzgün"],
-    "teşekkür": ["teşekkür", "sağ ol"],
-    "kim": ["kimsin", "nesin", "adın ne"],
-    "ne yapabilirsin": ["ne yapabilirsin", "ne yaparsın", "yeteneklerin neler"]
-}
-
-EGITIM_KELIMELER = ["nedir", "anlat", "açıkla", "konu", "ders", "matematik", "fen", "türkçe", "sosyal", "ingilizce"]
-
-def mesaj_turu_tespit(mesaj):
-    m = mesaj.lower().strip()
-    for tur, kelimeler in DIYALOG_ANAHTAR.items():
-        if any(k in m for k in kelimeler):
-            return f"diyalog:{tur}"
-    if any(k in m for k in EGITIM_KELIMELER) or len(m.split()) >= 3:
-        return "egitim"
-    return "diyalog:default"
-
-def diyalog_cevap(tur):
-    anahtar = tur.split(":")[1] if ":" in tur else "default"
-    return random.choice(DIYALOG_KALIPLARI.get(anahtar, DIYALOG_KALIPLARI["default"]))
-
-# --------------------------------------------------------------
-# SOHBET YÖNETİMİ (JSON)
-# --------------------------------------------------------------
+# --- Sohbet Yönetimi (JSON) ---
 SOHBET_DOSYA = "sohbetler.json"
 
 def sohbetleri_yukle():
     if os.path.exists(SOHBET_DOSYA):
-        try:
-            with open(SOHBET_DOSYA, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except:
-            return []
+        with open(SOHBET_DOSYA, "r", encoding="utf-8") as f:
+            return json.load(f)
     else:
-        with open(SOHBET_DOSYA, "w", encoding="utf-8") as f:
-            json.dump([], f, ensure_ascii=False, indent=2)
         return []
 
 def sohbetleri_kaydet(sohbetler):
@@ -187,9 +45,7 @@ def sohbetleri_kaydet(sohbetler):
 def yeni_sohbet_olustur(baslik):
     return {"id": int(time.time() * 1000), "baslik": baslik, "mesajlar": [], "olusturma": time.time()}
 
-# --------------------------------------------------------------
-# SESSION STATE
-# --------------------------------------------------------------
+# --- Session State ---
 if "kullanici_adi" not in st.session_state:
     st.session_state.kullanici_adi = None
 if "isim_bekleniyor" not in st.session_state:
@@ -201,8 +57,6 @@ if "aktif_id" not in st.session_state:
         st.session_state.aktif_id = st.session_state.sohbetler[0]["id"]
     else:
         st.session_state.aktif_id = None
-if "disi_sayac" not in st.session_state:
-    st.session_state.disi_sayac = 0
 
 def aktif_sohbet():
     for s in st.session_state.sohbetler:
@@ -210,9 +64,7 @@ def aktif_sohbet():
             return s
     return None
 
-# --------------------------------------------------------------
-# SIDEBAR
-# --------------------------------------------------------------
+# --- Sidebar ---
 with st.sidebar:
     st.markdown('<div class="sb-baslik">💬 Sohbetler</div>', unsafe_allow_html=True)
     if st.button("➕ Yeni Sohbet", use_container_width=True):
@@ -236,13 +88,9 @@ with st.sidebar:
                 sohbetleri_kaydet(st.session_state.sohbetler)
                 st.rerun()
     st.markdown("---")
-    st.caption("🔍 Google CSE ile sadece güvenilir eğitim siteleri taranıyor.")
-    if st.session_state.kullanici_adi:
-        st.markdown(f"<div style='text-align:center;margin-top:20px;padding:10px;background:rgba(102,126,234,0.2);border-radius:15px;'>👤 {st.session_state.kullanici_adi}</div>", unsafe_allow_html=True)
+    st.caption("🔍 Tavily API ile güvenilir kaynaklarda araştırma yapar.")
 
-# --------------------------------------------------------------
-# İSİM SORMA EKRANI
-# --------------------------------------------------------------
+# --- İsim Sorma Ekranı ---
 if st.session_state.isim_bekleniyor:
     st.markdown('<div class="isim-ekran"><h2>🤖 Hoş Geldin!</h2><p>Ben NumBot, sana nasıl hitap edeyim?</p></div>', unsafe_allow_html=True)
     isim = st.text_input("", placeholder="Adını yaz...", label_visibility="collapsed")
@@ -258,15 +106,12 @@ if st.session_state.isim_bekleniyor:
             st.rerun()
     st.stop()
 
-# --------------------------------------------------------------
-# ANA ALAN
-# --------------------------------------------------------------
+# --- Ana Alan ---
 ad = st.session_state.kullanici_adi or "Öğrenci"
 st.markdown(f'<div class="ana-baslik">🤖 Merhaba, {ad}!</div>', unsafe_allow_html=True)
-st.markdown('<div class="ana-alt">NumBot | 7. Sınıf Eğitim Asistanı | Google CSE + Groq AI</div>', unsafe_allow_html=True)
+st.markdown('<div class="ana-alt">NumBot | 7. Sınıf Eğitim Asistanı | Tavily ile Gerçek Zamanlı Arama</div>', unsafe_allow_html=True)
 
 sohbet = aktif_sohbet()
-
 if sohbet is None:
     st.info("💡 Başlamak için sol menüdeki **➕ Yeni Sohbet** butonuna tıklayın.")
 else:
@@ -274,38 +119,36 @@ else:
         if m["rol"] == "kullanici":
             st.markdown(f'<div class="mesaj-kullanici"><span>{m["icerik"]}</span></div>', unsafe_allow_html=True)
         else:
-            st.markdown(f'<div class="mesaj-asistan"><div class="cevap-kutu">{m["icerik"]}</div>', unsafe_allow_html=True)
-            if m.get("uyari"):
-                st.markdown(f'<div style="background:rgba(255,200,100,0.1);border-radius:10px;padding:8px;margin-top:8px;color:#ffd966">⚠️ {m["uyari"]}</div>', unsafe_allow_html=True)
-            st.markdown("</div>", unsafe_allow_html=True)
-    
+            st.markdown(f'<div class="mesaj-asistan"><div class="cevap-kutu">{m["icerik"]}</div></div>', unsafe_allow_html=True)
+
     girdi = st.chat_input(f"{ad}, ders sorusu sorabilirsin...")
     if girdi:
         msg = girdi.strip()
         if msg:
+            # Kullanıcı mesajını ekle ve kaydet
             sohbet["mesajlar"].append({"rol": "kullanici", "icerik": msg})
             sohbetleri_kaydet(st.session_state.sohbetler)
-            
+
+            # Başlık güncelle
             if sohbet["baslik"] == "Yeni Sohbet" and len(sohbet["mesajlar"]) == 1:
                 sohbet["baslik"] = msg[:30] + ("..." if len(msg) > 30 else "")
                 sohbetleri_kaydet(st.session_state.sohbetler)
-            
-            tur = mesaj_turu_tespit(msg)
-            
-            if tur == "egitim":
-                st.session_state.disi_sayac = 0
-                with st.spinner("🔍 NumBot, Google CSE ile güvenilir eğitim sitelerinde araştırıyor..."):
-                    cevap, kaynaklar = cevap_uret(msg)
-                sohbet["mesajlar"].append({"rol": "asistan", "icerik": cevap, "tur": "egitim", "kaynaklar": kaynaklar})
-                sohbetleri_kaydet(st.session_state.sohbetler)
-            else:
-                st.session_state.disi_sayac += 1
-                cevap = diyalog_cevap(tur)
-                uyari = None
-                if st.session_state.disi_sayac >= 3:
-                    uyari = random.choice(["💡 Sohbet güzel ama ders sorusu da sorabilirsin!", "📖 Bir ders sorusu sormaya ne dersin?"])
-                    st.session_state.disi_sayac = 0
-                sohbet["mesajlar"].append({"rol": "asistan", "icerik": cevap, "tur": "diyalog", "uyari": uyari})
-                sohbetleri_kaydet(st.session_state.sohbetler)
-            
+
+            # Tavily ile ara
+            with st.spinner("🔍 NumBot internette araştırıyor..."):
+                try:
+                    response = tavily.search(query=msg, search_depth="basic", max_results=3)
+                    if response and response.get('results'):
+                        cevap = ""
+                        for idx, result in enumerate(response['results'], 1):
+                            cevap += f"**{idx}.** [{result['title']}]({result['url']})\n\n{result['content'][:600]}\n\n---\n\n"
+                    else:
+                        cevap = "Üzgünüm, bu konuda güvenilir bir kaynak bulamadım. Lütfen farklı bir soru sor."
+                except Exception as e:
+                    cevap = f"API hatası: {e}. Lütfen daha sonra tekrar dene."
+
+            # Asistan cevabını ekle ve kaydet
+            sohbet["mesajlar"].append({"rol": "asistan", "icerik": cevap})
+            sohbetleri_kaydet(st.session_state.sohbetler)
+
             st.rerun()
