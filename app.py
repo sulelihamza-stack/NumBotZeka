@@ -4,12 +4,14 @@ import re
 import random
 import json
 import os
-from duckduckgo_search import DDGS
+import requests
 from groq import Groq
 
 # --------------------------------------------------------------
-# GROQ API KEY
+# GOOGLE CSE BİLGİLERİ (SENİN VERDİKLERİN)
 # --------------------------------------------------------------
+SEARCH_ENGINE_ID = "230f6376b7740411d"
+API_KEY = "AIzaSyA0_BxAEG2pcd0SdwhzanArxQq6gF84TvE"
 GROQ_API_KEY = "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"
 
 st.set_page_config(page_title="NumBot - 7. Sınıf Eğitim Asistanı", page_icon="🤖", layout="wide")
@@ -35,16 +37,9 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --------------------------------------------------------------
-# SADECE TÜRK EĞİTİM SİTELERİ (SPOR YOK)
+# SPOR FİLTRESİ
 # --------------------------------------------------------------
-EGITIM_SITELERI = [
-    "meb.gov.tr", "eba.gov.tr", "odsgm.meb.gov.tr",
-    "derslig.com", "morpakampus.com", "okulistik.com",
-    "tongucakademi.com", "khanacademy.org.tr", "eokultv.com",
-    "sinifogretmenim.com", "turkcedersi.net", "sosyalciniz.net"
-]
-
-SPOR_KELIMELER = ["nba", "futbol", "basketbol", "maç", "takım", "lig", "şampiyon", "lakers", "galatasaray", "fenerbahçe", "beşiktaş", "premier league", "spor", "gol", "transfer"]
+SPOR_KELIMELER = ["nba", "futbol", "basketbol", "maç", "takım", "lig", "şampiyon", "lakers", "galatasaray", "fenerbahçe", "beşiktaş", "premier league", "spor", "gol", "transfer", "trabzonspor", "başakşehir", "süper lig", "şampiyonlar ligi"]
 
 def spor_mu(baslik, icerik):
     kontrol = (baslik + " " + icerik).lower()
@@ -54,33 +49,50 @@ def spor_mu(baslik, icerik):
     return False
 
 # --------------------------------------------------------------
-# ARAMA (SADECE EĞİTİM SİTELERİ)
+# GOOGLE CSE ARAMA
 # --------------------------------------------------------------
 @st.cache_data(ttl=3600, show_spinner=False)
-def egitim_sitelerinde_ara(soru):
-    tum_sonuclar = []
-    for site in EGITIM_SITELERI:
-        sorgu = f"site:{site} {soru} 7 sınıf konu anlatımı"
-        try:
-            with DDGS() as ddgs:
-                sonuc = list(ddgs.text(sorgu, region="tr-tr", max_results=2))
-                for s in sonuc:
-                    baslik = s.get("title", "")
-                    icerik = s.get("body", "")
-                    if not spor_mu(baslik, icerik):
-                        tum_sonuclar.append(s)
-        except:
-            pass
-        time.sleep(0.1)
-    return tum_sonuclar[:4]
+def google_cse_ara(soru):
+    sorgu = f"{soru} 7 sınıf konu anlatımı"
+    url = f"https://www.googleapis.com/customsearch/v1?key={API_KEY}&cx={SEARCH_ENGINE_ID}&q={sorgu}&lr=lang_tr"
+    
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        
+        if "items" not in data:
+            return None, None
+        
+        metin = ""
+        kaynaklar = []
+        for item in data["items"][:3]:
+            baslik = item.get("title", "")
+            snippet = item.get("snippet", "")
+            link = item.get("link", "")
+            
+            if spor_mu(baslik, snippet):
+                continue
+            
+            metin += f"{baslik}\n{snippet}\n\n"
+            kaynaklar.append(link)
+        
+        if not metin:
+            return None, None
+        return metin[:3000], kaynaklar
+    except Exception as e:
+        return None, None
 
+# --------------------------------------------------------------
+# GROQ SENTEZ
+# --------------------------------------------------------------
 def groq_cevap(soru, metin):
     try:
         client = Groq(api_key=GROQ_API_KEY)
         sistem = """Sen 7. sınıf öğrencilerine ders anlatan bir eğitim asistanısın.
         Verilen metne göre soruyu cevapla. MEB müfredatına uygun, anlaşılır Türkçe kullan.
         Örnekler ver, madde işaretleri kullan.
-        ASLA spor, futbol, basketbol, NBA, Premier League ile ilgili örnek verme.
+        ASLA spor (futbol, basketbol, NBA, Premier League, Süper Lig) ile ilgili örnek verme.
         Sadece ders konularına odaklan."""
         yanit = client.chat.completions.create(
             model="llama-3.1-8b-instant",
@@ -96,20 +108,9 @@ def groq_cevap(soru, metin):
         return None
 
 def cevap_uret(soru):
-    sonuclar = egitim_sitelerinde_ara(soru)
-    if not sonuclar:
-        return "🔍 Bu konuda güvenilir eğitim sitelerinde (MEB, Derslig, Morpa, Tonguç, Khan Academy) bilgi bulamadım. Lütfen farklı bir soru sor.", None
-    
-    metin = ""
-    kaynaklar = []
-    for s in sonuclar:
-        if s.get("body"):
-            metin += s["body"] + "\n\n"
-        if s.get("href"):
-            kaynaklar.append(s["href"])
-    
+    metin, kaynaklar = google_cse_ara(soru)
     if not metin:
-        return "İçerik alınamadı.", None
+        return "🔍 Bu konuda güvenilir eğitim sitelerinde (MEB, Derslig, Morpa, Okulistik, Tonguç) bilgi bulamadım. Lütfen farklı bir soru sor.", None
     
     cevap = groq_cevap(soru, metin)
     if not cevap:
@@ -130,7 +131,7 @@ DIYALOG_KALIPLARI = {
     "kötü": ["😔 Üzgünüm... Birlikte çalışalım, daha iyi hissedersin.", "💪 Geçer, merak etme!"],
     "teşekkür": ["🤗 Rica ederim! Başka sorun olursa buradayım.", "💖 Ne demek!"],
     "kim": ["🤖 Ben NumBot! 7. sınıf yapay zeka eğitim asistanın.", "🧠 NumBot - eğitim asistanın!"],
-    "ne yapabilirsin": ["🔍 Sadece güvenilir eğitim sitelerinde (MEB, Derslig, Morpa, Tonguç) araştırma yaparım.", "📚 7. sınıf tüm derslerde sana yardımcı olurum."],
+    "ne yapabilirsin": ["🔍 Sadece güvenilir eğitim sitelerinde (MEB, Derslig, Morpa, Okulistik, Tonguç) araştırma yaparım.", "📚 7. sınıf tüm derslerde sana yardımcı olurum."],
     "default": ["💭 Ders sorusu sorabilir misin? İnternette güvenilir kaynaklardan araştırayım.", "📖 Bir konuyu sana anlatmamı ister misin?"]
 }
 
@@ -160,7 +161,7 @@ def diyalog_cevap(tur):
     return random.choice(DIYALOG_KALIPLARI.get(anahtar, DIYALOG_KALIPLARI["default"]))
 
 # --------------------------------------------------------------
-# SOHBET YÖNETİMİ (JSON) - KESİN ÇALIŞIR
+# SOHBET YÖNETİMİ (JSON)
 # --------------------------------------------------------------
 SOHBET_DOSYA = "sohbetler.json"
 
@@ -236,7 +237,7 @@ with st.sidebar:
                 st.rerun()
     
     st.markdown("---")
-    st.caption("🔍 Sadece güvenilir eğitim siteleri (MEB, Derslig, Morpa, Tonguç)")
+    st.caption("🔍 Google CSE ile sadece güvenilir eğitim siteleri taranıyor.")
     
     if st.session_state.kullanici_adi:
         st.markdown(f"<div style='text-align:center;margin-top:20px;padding:10px;background:rgba(102,126,234,0.2);border-radius:15px;'>👤 {st.session_state.kullanici_adi}</div>", unsafe_allow_html=True)
@@ -264,7 +265,7 @@ if st.session_state.isim_bekleniyor:
 # --------------------------------------------------------------
 ad = st.session_state.kullanici_adi or "Öğrenci"
 st.markdown(f'<div class="ana-baslik">🤖 Merhaba, {ad}!</div>', unsafe_allow_html=True)
-st.markdown('<div class="ana-alt">NumBot | 7. Sınıf Eğitim Asistanı | Sadece Güvenilir Eğitim Siteleri</div>', unsafe_allow_html=True)
+st.markdown('<div class="ana-alt">NumBot | 7. Sınıf Eğitim Asistanı | Google CSE + Groq AI</div>', unsafe_allow_html=True)
 
 sohbet = aktif_sohbet()
 
@@ -295,7 +296,7 @@ else:
             
             if tur == "egitim":
                 st.session_state.disi_sayac = 0
-                with st.spinner("🔍 NumBot güvenilir eğitim sitelerinde araştırıyor..."):
+                with st.spinner("🔍 NumBot, Google CSE ile güvenilir eğitim sitelerinde araştırıyor..."):
                     cevap, kaynaklar = cevap_uret(msg)
                 sohbet["mesajlar"].append({"rol": "asistan", "icerik": cevap, "tur": "egitim", "kaynaklar": kaynaklar})
                 sohbetleri_kaydet(st.session_state.sohbetler)
