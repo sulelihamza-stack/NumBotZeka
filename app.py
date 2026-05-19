@@ -4,18 +4,16 @@ import json
 import os
 import random
 from tavily import TavilyClient
-from groq import Groq
 
 # --------------------------------------------------------------
-# API ANAHTARLARI (Streamlit Cloud Secrets)
+# TAVILY API ANAHTARI (Streamlit Cloud Secrets)
 # --------------------------------------------------------------
 tavily = TavilyClient(api_key=st.secrets["TAVILY_API_KEY"])
-groq_client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
 st.set_page_config(page_title="NumBot - 7. Sınıf Eğitim Asistanı", page_icon="🤖", layout="wide")
 
 # --------------------------------------------------------------
-# SİYAH TEMA
+# SİYAH TEMA (kısa)
 # --------------------------------------------------------------
 st.markdown("""
 <style>
@@ -43,7 +41,7 @@ DIYALOG_KALIPLARI = {
     "kötü": ["😔 Üzgünüm... Birlikte çalışalım, daha iyi hissedersin.", "💪 Geçer, merak etme!"],
     "teşekkür": ["🤗 Rica ederim! Başka sorun olursa buradayım.", "💖 Ne demek!"],
     "kim": ["🤖 Ben NumBot! 7. sınıf yapay zeka eğitim asistanın.", "🧠 NumBot - eğitim asistanın!"],
-    "ne yapabilirsin": ["🔍 Tavily ile araştırır, Groq ile düzenleyip anlatırım.", "📚 7. sınıf tüm derslerde yardımcı olurum."],
+    "ne yapabilirsin": ["🔍 Tavily ile internette güvenilir kaynakları tarar, sana özet sunarım.", "📚 7. sınıf tüm derslerde yardımcı olurum."],
     "default": ["💭 Ders sorusu sorabilir misin? İnternette araştırayım.", "📖 Bir konuyu sana anlatmamı ister misin?"]
 }
 
@@ -54,7 +52,7 @@ DIYALOG_ANAHTAR = {
     "kötü": ["kötüyüm", "kötü", "üzgün"],
     "teşekkür": ["teşekkür", "sağ ol"],
     "kim": ["kimsin", "nesin", "adın ne"],
-    "ne yapabilirsin": ["ne yapabilirsin", "ne yaparsın", "yeteneklerin neler"]
+    "ne yapabilirsin": ["ne yapabilirsin", "ne yaparsın", "yeteneklerin neles"]
 }
 
 EGITIM_KELIMELER = ["nedir", "anlat", "açıkla", "konu", "ders", "matematik", "fen", "türkçe", "sosyal", "ingilizce", "zamir", "zarf", "fiil"]
@@ -75,7 +73,7 @@ def diyalog_cevap(tur):
 # --------------------------------------------------------------
 # SPOR FİLTRESİ
 # --------------------------------------------------------------
-SPOR_KELIMELER = ["nba", "futbol", "basketbol", "maç", "takım", "lig", "şampiyon", "premier league", "spor", "gol"]
+SPOR_KELIMELER = ["nba", "futbol", "basketbol", "maç", "takım", "lig", "şampiyon", "premier league", "spor", "gol", "galatasaray", "fenerbahçe", "beşiktaş"]
 
 def spor_icerik_mi(icerik):
     icerik_lower = icerik.lower()
@@ -94,56 +92,24 @@ def tavily_ara(soru):
             temiz = []
             for r in response['results']:
                 if not spor_icerik_mi(r.get('content', '')):
-                    temiz.append(r['content'])
+                    temiz.append(r)
             if not temiz:
                 return None
-            return "\n\n".join(temiz)[:3500]
+            # Sonuçları biçimlendir (başlık + içerik)
+            metin = ""
+            for r in temiz:
+                metin += f"**{r['title']}**\n{r['content']}\n\n"
+            return metin[:3000]
         return None
     except Exception as e:
-        st.error(f"🔍 Tavily arama hatası: {e}")
-        return None
-
-# --------------------------------------------------------------
-# GROQ DÜZENLEME
-# --------------------------------------------------------------
-def groq_duzenle(soru, ham_metin):
-    try:
-        prompt = f"""Sen 7. sınıf öğrencilerine ders anlatan bir eğitim asistanısın.
-Aşağıda ham arama sonuçları var. Bu metni kullanarak soruyu cevapla.
-Kurallar:
-- Sade, anlaşılır Türkçe kullan.
-- Madde işaretleri ve örneklerle anlat.
-- PDF, site adı, "kaynak", "tıkla" gibi ifadeleri KESİNLİKLE YAZMA.
-- Spor örneği verme.
-- Gereksiz tekrarları çıkar.
-- Cevabı en fazla 600 kelimede tut.
-
-Soru: {soru}
-
-Ham metin:
-{ham_metin}
-
-Yukarıdaki metne göre düzenli bir ders anlatımı hazırla."""
-        response = groq_client.chat.completions.create(
-            model="llama-3.1-8b-instant",
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=700,
-            temperature=0.3
-        )
-        return response.choices[0].message.content.strip()
-    except Exception as e:
-        st.error(f"🤖 Groq düzenleme hatası: {e}")
+        st.error(f"🔍 Tavily hatası: {e}")
         return None
 
 def cevap_uret(soru):
     ham = tavily_ara(soru)
     if not ham:
         return "🔍 Üzgünüm, bu konuda güvenilir bir bilgi bulamadım. Lütfen farklı bir soru sor."
-    duzenli = groq_duzenle(soru, ham)
-    if duzenli:
-        return duzenli
-    else:
-        return "⚠️ Bilgi bulundu ancak düzenlenirken bir hata oluştu. Lütfen daha sonra tekrar deneyin."
+    return ham
 
 # --------------------------------------------------------------
 # SOHBET YÖNETİMİ (JSON)
@@ -218,7 +184,7 @@ with st.sidebar:
                 sohbetleri_kaydet(st.session_state.sohbetler)
                 st.rerun()
     st.markdown("---")
-    st.caption("🔍 Tavily + Groq ile düzenli ders anlatımı")
+    st.caption("🔍 Tavily ile güvenilir internet araması")
     if st.session_state.kullanici_adi:
         st.markdown(f"<div style='text-align:center;margin-top:20px;padding:10px;background:rgba(102,126,234,0.2);border-radius:15px;'>👤 {st.session_state.kullanici_adi}</div>", unsafe_allow_html=True)
 
@@ -245,7 +211,7 @@ if st.session_state.isim_bekleniyor:
 # --------------------------------------------------------------
 ad = st.session_state.kullanici_adi or "Öğrenci"
 st.markdown(f'<div class="ana-baslik">🤖 Merhaba, {ad}!</div>', unsafe_allow_html=True)
-st.markdown('<div class="ana-alt">NumBot | Tavily ile Araştırır, Groq ile Düzenli Anlatır</div>', unsafe_allow_html=True)
+st.markdown('<div class="ana-alt">NumBot | Tavily ile Gerçek Zamanlı Bilgi</div>', unsafe_allow_html=True)
 
 sohbet = aktif_sohbet()
 if sohbet is None:
@@ -275,7 +241,7 @@ else:
 
             if tur == "egitim":
                 st.session_state.disi_sayac = 0
-                with st.spinner("🔍 NumBot internette araştırıp düzenli ders anlatımı hazırlıyor..."):
+                with st.spinner("🔍 NumBot internette güvenilir kaynakları tarıyor..."):
                     cevap = cevap_uret(msg)
                 sohbet["mesajlar"].append({"rol": "asistan", "icerik": cevap, "tur": "egitim"})
                 sohbetleri_kaydet(st.session_state.sohbetler)
