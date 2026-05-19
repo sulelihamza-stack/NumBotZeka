@@ -2,17 +2,20 @@ import streamlit as st
 import time
 import json
 import os
+import random
 from tavily import TavilyClient
+from groq import Groq
 
 # --------------------------------------------------------------
-# TAVILY API ANAHTARI (Streamlit Cloud Secrets'tan al)
+# API ANAHTARLARI (Streamlit Cloud Secrets)
 # --------------------------------------------------------------
 tavily = TavilyClient(api_key=st.secrets["TAVILY_API_KEY"])
+groq_client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
 st.set_page_config(page_title="NumBot - 7. Sınıf Eğitim Asistanı", page_icon="🤖", layout="wide")
 
 # --------------------------------------------------------------
-# SİYAH TEMA
+# SİYAH TEMA (kısa)
 # --------------------------------------------------------------
 st.markdown("""
 <style>
@@ -20,19 +23,18 @@ st.markdown("""
 [data-testid="stSidebar"] { background: #1a1a2e !important; border-right: 1px solid #2a2a3e !important; }
 [data-testid="stSidebar"] * { color: #e0e0e0 !important; }
 .sb-baslik { font-size: 1.2rem; font-weight: 700; text-align: center; padding: 15px; background: linear-gradient(135deg, #667eea, #764ba2); border-radius: 12px; margin: 10px; color: white; }
-.ana-baslik { font-size: 2rem; font-weight: 700; text-align: center; background: linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 20px 0 5px; }
-.ana-alt { font-size: 0.9rem; color: #888; text-align: center; margin-bottom: 20px; }
+.ana-baslik { font-size: 2rem; font-weight: 700; text-align: center; background: linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
 .mesaj-kullanici { display: flex; justify-content: flex-end; margin: 10px 0; }
 .mesaj-kullanici span { background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 10px 18px; border-radius: 20px; max-width: 80%; }
 .mesaj-asistan { margin: 10px 0; }
-.cevap-kutu { background: #1a1a2e; border-radius: 20px; padding: 15px 20px; color: #e0e0e0; border: 1px solid #2a2a3e; line-height: 1.6; }
+.cevap-kutu { background: #1a1a2e; border-radius: 20px; padding: 15px 20px; color: #e0e0e0; border: 1px solid #2a2a3e; }
 .isim-ekran { max-width: 400px; margin: 100px auto; background: #1a1a2e; border-radius: 30px; padding: 40px; text-align: center; border: 1px solid #2a2a3e; }
 [data-testid="stChatInput"] { background: #1a1a2e !important; border-color: #2a2a3e !important; color: white !important; }
 </style>
 """, unsafe_allow_html=True)
 
 # --------------------------------------------------------------
-# DİYALOG SİSTEMİ (TAM, SOHBET İÇİN)
+# DİYALOG SİSTEMİ (kısa)
 # --------------------------------------------------------------
 DIYALOG_KALIPLARI = {
     "selam": ["✨ Selam! Ben NumBot, 7. sınıf derslerinde sana yardımcı olabilirim.", "👋 Merhaba! Ders sorusu sorabilirsin."],
@@ -41,7 +43,7 @@ DIYALOG_KALIPLARI = {
     "kötü": ["😔 Üzgünüm... Birlikte çalışalım, daha iyi hissedersin.", "💪 Geçer, merak etme!"],
     "teşekkür": ["🤗 Rica ederim! Başka sorun olursa buradayım.", "💖 Ne demek!"],
     "kim": ["🤖 Ben NumBot! 7. sınıf yapay zeka eğitim asistanın.", "🧠 NumBot - eğitim asistanın!"],
-    "ne yapabilirsin": ["🔍 Tavily API ile internette güvenilir kaynakları tararım ve sana özet sunarım.", "📚 7. sınıf tüm derslerde sana yardımcı olurum."],
+    "ne yapabilirsin": ["🔍 Tavily ile araştırır, Groq ile düzenleyip anlatırım.", "📚 7. sınıf tüm derslerde yardımcı olurum."],
     "default": ["💭 Ders sorusu sorabilir misin? İnternette araştırayım.", "📖 Bir konuyu sana anlatmamı ister misin?"]
 }
 
@@ -68,13 +70,12 @@ def mesaj_turu_tespit(mesaj):
 
 def diyalog_cevap(tur):
     anahtar = tur.split(":")[1] if ":" in tur else "default"
-    import random
     return random.choice(DIYALOG_KALIPLARI.get(anahtar, DIYALOG_KALIPLARI["default"]))
 
 # --------------------------------------------------------------
-# TAVILY ARAMA (SADECE GÜVENİLİR SİTELER İÇİN FİLTRE YOK, AMA SPOR ENGELLİ)
+# TAVILY ARAMA + GROQ DÜZENLEME
 # --------------------------------------------------------------
-SPOR_KELIMELER = ["nba", "futbol", "basketbol", "maç", "takım", "lig", "şampiyon", "lakers", "galatasaray", "fenerbahçe", "beşiktaş", "premier league", "spor", "gol"]
+SPOR_KELIMELER = ["nba", "futbol", "basketbol", "maç", "takım", "lig", "şampiyon", "premier league", "spor", "gol"]
 
 def spor_icerik_mi(icerik):
     icerik_lower = icerik.lower()
@@ -85,37 +86,58 @@ def spor_icerik_mi(icerik):
 
 def tavily_ara(soru):
     try:
-        response = tavily.search(query=soru, search_depth="basic", max_results=3)
+        response = tavily.search(query=soru, search_depth="basic", max_results=4)
         if response and response.get('results'):
-            # Spor içeren sonuçları filtrele
-            temiz_sonuclar = []
+            temiz = []
             for r in response['results']:
                 if not spor_icerik_mi(r.get('content', '')):
-                    temiz_sonuclar.append(r)
-            if not temiz_sonuclar:
+                    temiz.append(r['content'])
+            if not temiz:
                 return None
-            # Sonuçları biçimlendir
-            metin = ""
-            kaynaklar = []
-            for r in temiz_sonuclar:
-                metin += f"**{r['title']}**\n{r['content']}\n\n"
-                kaynaklar.append(r['url'])
-            return metin[:3000], kaynaklar
+            return "\n\n".join(temiz)[:3500]
         return None
     except Exception as e:
         st.error(f"Tavily hatası: {e}")
         return None
 
+def groq_duzenle(soru, ham_metin):
+    try:
+        prompt = f"""Sen 7. sınıf öğrencilerine ders anlatan bir eğitim asistanısın.
+Aşağıda ham arama sonuçları var. Bu metni kullanarak soruyu cevapla.
+Kurallar:
+- Sade, anlaşılır Türkçe kullan.
+- Madde işaretleri ve örneklerle anlat.
+- PDF, site adı, "kaynak", "tıkla" gibi ifadeleri KESİNLİKLE YAZMA.
+- Spor örneği verme.
+- Gereksiz tekrarları çıkar.
+- Cevabı en fazla 600 kelimede tut.
+
+Soru: {soru}
+
+Ham metin:
+{ham_metin}
+
+Yukarıdaki metne göre düzenli bir ders anlatımı hazırla."""
+        response = groq_client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=700,
+            temperature=0.3
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        st.error(f"Groq hatası: {e}")
+        return None
+
 def cevap_uret(soru):
-    sonuc = tavily_ara(soru)
-    if sonuc:
-        metin, kaynaklar = sonuc
-        cevap = metin
-        if kaynaklar:
-            cevap += "\n\n📚 **Kaynaklar:**\n" + "\n".join([f"🔗 {k}" for k in kaynaklar[:3]])
-        return cevap
+    ham = tavily_ara(soru)
+    if not ham:
+        return "Üzgünüm, bu konuda güvenilir bir bilgi bulamadım. Lütfen farklı bir soru sor."
+    duzenli = groq_duzenle(soru, ham)
+    if duzenli:
+        return duzenli
     else:
-        return "🔍 Üzgünüm, bu konuda güvenilir bir bilgi bulamadım. Lütfen farklı bir soru sor."
+        return "Bilgi bulundu ancak düzenlenirken hata oluştu. Lütfen tekrar deneyin."
 
 # --------------------------------------------------------------
 # SOHBET YÖNETİMİ (JSON)
@@ -190,7 +212,7 @@ with st.sidebar:
                 sohbetleri_kaydet(st.session_state.sohbetler)
                 st.rerun()
     st.markdown("---")
-    st.caption("🔍 Tavily ile güvenilir internet araması")
+    st.caption("🔍 Tavily + Groq ile düzenli ders anlatımı")
     if st.session_state.kullanici_adi:
         st.markdown(f"<div style='text-align:center;margin-top:20px;padding:10px;background:rgba(102,126,234,0.2);border-radius:15px;'>👤 {st.session_state.kullanici_adi}</div>", unsafe_allow_html=True)
 
@@ -217,7 +239,7 @@ if st.session_state.isim_bekleniyor:
 # --------------------------------------------------------------
 ad = st.session_state.kullanici_adi or "Öğrenci"
 st.markdown(f'<div class="ana-baslik">🤖 Merhaba, {ad}!</div>', unsafe_allow_html=True)
-st.markdown('<div class="ana-alt">NumBot | 7. Sınıf Eğitim Asistanı | Tavily ile Gerçek Zamanlı Arama</div>', unsafe_allow_html=True)
+st.markdown('<div class="ana-alt">NumBot | Tavily ile Araştırır, Groq ile Düzenli Anlatır</div>', unsafe_allow_html=True)
 
 sohbet = aktif_sohbet()
 if sohbet is None:
@@ -247,7 +269,7 @@ else:
 
             if tur == "egitim":
                 st.session_state.disi_sayac = 0
-                with st.spinner("🔍 NumBot internette güvenilir kaynakları tarıyor..."):
+                with st.spinner("🔍 NumBot internette araştırıp düzenli ders anlatımı hazırlıyor..."):
                     cevap = cevap_uret(msg)
                 sohbet["mesajlar"].append({"rol": "asistan", "icerik": cevap, "tur": "egitim"})
                 sohbetleri_kaydet(st.session_state.sohbetler)
