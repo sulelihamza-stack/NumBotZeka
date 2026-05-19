@@ -15,7 +15,7 @@ groq_client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 st.set_page_config(page_title="NumBot - 7. Sınıf Eğitim Asistanı", page_icon="🤖", layout="wide")
 
 # --------------------------------------------------------------
-# SİYAH TEMA (kısa)
+# SİYAH TEMA
 # --------------------------------------------------------------
 st.markdown("""
 <style>
@@ -27,14 +27,14 @@ st.markdown("""
 .mesaj-kullanici { display: flex; justify-content: flex-end; margin: 10px 0; }
 .mesaj-kullanici span { background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 10px 18px; border-radius: 20px; max-width: 80%; }
 .mesaj-asistan { margin: 10px 0; }
-.cevap-kutu { background: #1a1a2e; border-radius: 20px; padding: 15px 20px; color: #e0e0e0; border: 1px solid #2a2a3e; }
+.cevap-kutu { background: #1a1a2e; border-radius: 20px; padding: 15px 20px; color: #e0e0e0; border: 1px solid #2a2a3e; line-height: 1.6; }
 .isim-ekran { max-width: 400px; margin: 100px auto; background: #1a1a2e; border-radius: 30px; padding: 40px; text-align: center; border: 1px solid #2a2a3e; }
 [data-testid="stChatInput"] { background: #1a1a2e !important; border-color: #2a2a3e !important; color: white !important; }
 </style>
 """, unsafe_allow_html=True)
 
 # --------------------------------------------------------------
-# DİYALOG SİSTEMİ (kısa)
+# DİYALOG SİSTEMİ
 # --------------------------------------------------------------
 DIYALOG_KALIPLARI = {
     "selam": ["✨ Selam! Ben NumBot, 7. sınıf derslerinde sana yardımcı olabilirim.", "👋 Merhaba! Ders sorusu sorabilirsin."],
@@ -73,7 +73,7 @@ def diyalog_cevap(tur):
     return random.choice(DIYALOG_KALIPLARI.get(anahtar, DIYALOG_KALIPLARI["default"]))
 
 # --------------------------------------------------------------
-# TAVILY ARAMA + GROQ DÜZENLEME
+# SPOR FİLTRESİ
 # --------------------------------------------------------------
 SPOR_KELIMELER = ["nba", "futbol", "basketbol", "maç", "takım", "lig", "şampiyon", "premier league", "spor", "gol"]
 
@@ -84,6 +84,9 @@ def spor_icerik_mi(icerik):
             return True
     return False
 
+# --------------------------------------------------------------
+# TAVILY ARAMA
+# --------------------------------------------------------------
 def tavily_ara(soru):
     try:
         response = tavily.search(query=soru, search_depth="basic", max_results=4)
@@ -97,9 +100,12 @@ def tavily_ara(soru):
             return "\n\n".join(temiz)[:3500]
         return None
     except Exception as e:
-        st.error(f"Tavily hatası: {e}")
+        st.error(f"🔍 Tavily arama hatası: {e}")
         return None
 
+# --------------------------------------------------------------
+# GROQ DÜZENLEME
+# --------------------------------------------------------------
 def groq_duzenle(soru, ham_metin):
     try:
         prompt = f"""Sen 7. sınıf öğrencilerine ders anlatan bir eğitim asistanısın.
@@ -126,18 +132,18 @@ Yukarıdaki metne göre düzenli bir ders anlatımı hazırla."""
         )
         return response.choices[0].message.content.strip()
     except Exception as e:
-        st.error(f"Groq hatası: {e}")
+        st.error(f"🤖 Groq düzenleme hatası: {e}")
         return None
 
 def cevap_uret(soru):
     ham = tavily_ara(soru)
     if not ham:
-        return "Üzgünüm, bu konuda güvenilir bir bilgi bulamadım. Lütfen farklı bir soru sor."
+        return "🔍 Üzgünüm, bu konuda güvenilir bir bilgi bulamadım. Lütfen farklı bir soru sor."
     duzenli = groq_duzenle(soru, ham)
     if duzenli:
         return duzenli
     else:
-        return "Bilgi bulundu ancak düzenlenirken hata oluştu. Lütfen tekrar deneyin."
+        return "⚠️ Bilgi bulundu ancak düzenlenirken bir hata oluştu. Lütfen daha sonra tekrar deneyin."
 
 # --------------------------------------------------------------
 # SOHBET YÖNETİMİ (JSON)
