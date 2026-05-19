@@ -49,7 +49,7 @@ def spor_mu(baslik, icerik):
     return False
 
 # --------------------------------------------------------------
-# GOOGLE CSE ARAMA
+# GOOGLE CSE ARAMA (GERÇEK API ÇAĞRISI)
 # --------------------------------------------------------------
 @st.cache_data(ttl=3600, show_spinner=False)
 def google_cse_ara(soru):
@@ -62,6 +62,7 @@ def google_cse_ara(soru):
         data = response.json()
         
         if "items" not in data:
+            st.warning("Google CSE sonuç bulamadı. Yanıt: " + str(data))
             return None, None
         
         metin = ""
@@ -81,6 +82,7 @@ def google_cse_ara(soru):
             return None, None
         return metin[:3000], kaynaklar
     except Exception as e:
+        st.error(f"Google CSE hatası: {e}")
         return None, None
 
 # --------------------------------------------------------------
@@ -104,7 +106,8 @@ def groq_cevap(soru, metin):
             temperature=0.3
         )
         return yanit.choices[0].message.content.strip()
-    except:
+    except Exception as e:
+        st.error(f"Groq hatası: {e}")
         return None
 
 def cevap_uret(soru):
@@ -122,7 +125,7 @@ def cevap_uret(soru):
     return cevap, kaynaklar
 
 # --------------------------------------------------------------
-# DİYALOG SİSTEMİ
+# DİYALOG SİSTEMİ (Kısa)
 # --------------------------------------------------------------
 DIYALOG_KALIPLARI = {
     "selam": ["✨ Selam! Ben NumBot, 7. sınıf derslerinde sana yardımcı olabilirim.", "👋 Merhaba! Ders sorusu sorabilirsin."],
@@ -212,16 +215,13 @@ def aktif_sohbet():
 # --------------------------------------------------------------
 with st.sidebar:
     st.markdown('<div class="sb-baslik">💬 Sohbetler</div>', unsafe_allow_html=True)
-    
     if st.button("➕ Yeni Sohbet", use_container_width=True):
         yeni = yeni_sohbet_olustur("Yeni Sohbet")
         st.session_state.sohbetler.insert(0, yeni)
         st.session_state.aktif_id = yeni["id"]
         sohbetleri_kaydet(st.session_state.sohbetler)
         st.rerun()
-    
     st.markdown("---")
-    
     for s in st.session_state.sohbetler:
         col1, col2 = st.columns([0.8, 0.2])
         with col1:
@@ -235,10 +235,8 @@ with st.sidebar:
                     st.session_state.aktif_id = st.session_state.sohbetler[0]["id"] if st.session_state.sohbetler else None
                 sohbetleri_kaydet(st.session_state.sohbetler)
                 st.rerun()
-    
     st.markdown("---")
     st.caption("🔍 Google CSE ile sadece güvenilir eğitim siteleri taranıyor.")
-    
     if st.session_state.kullanici_adi:
         st.markdown(f"<div style='text-align:center;margin-top:20px;padding:10px;background:rgba(102,126,234,0.2);border-radius:15px;'>👤 {st.session_state.kullanici_adi}</div>", unsafe_allow_html=True)
 
