@@ -3,17 +3,19 @@ import time
 import json
 import os
 import random
+import requests
 from tavily import TavilyClient
 
 # --------------------------------------------------------------
-# TAVILY API ANAHTARI (Streamlit Cloud Secrets)
+# API ANAHTARLARI (Streamlit Cloud Secrets)
 # --------------------------------------------------------------
 tavily = TavilyClient(api_key=st.secrets["TAVILY_API_KEY"])
+OPENROUTER_API_KEY = st.secrets["OPENROUTER_API_KEY"]
 
 st.set_page_config(page_title="NumBot - 7. Sınıf Eğitim Asistanı", page_icon="🤖", layout="wide")
 
 # --------------------------------------------------------------
-# SİYAH TEMA (kısa)
+# SİYAH TEMA
 # --------------------------------------------------------------
 st.markdown("""
 <style>
@@ -41,7 +43,7 @@ DIYALOG_KALIPLARI = {
     "kötü": ["😔 Üzgünüm... Birlikte çalışalım, daha iyi hissedersin.", "💪 Geçer, merak etme!"],
     "teşekkür": ["🤗 Rica ederim! Başka sorun olursa buradayım.", "💖 Ne demek!"],
     "kim": ["🤖 Ben NumBot! 7. sınıf yapay zeka eğitim asistanın.", "🧠 NumBot - eğitim asistanın!"],
-    "ne yapabilirsin": ["🔍 Tavily ile internette güvenilir kaynakları tarar, sana özet sunarım.", "📚 7. sınıf tüm derslerde yardımcı olurum."],
+    "ne yapabilirsin": ["🔍 Tavily ile araştırır, OpenRouter ile düzenleyip anlatırım.", "📚 7. sınıf tüm derslerde yardımcı olurum."],
     "default": ["💭 Ders sorusu sorabilir misin? İnternette araştırayım.", "📖 Bir konuyu sana anlatmamı ister misin?"]
 }
 
@@ -52,7 +54,7 @@ DIYALOG_ANAHTAR = {
     "kötü": ["kötüyüm", "kötü", "üzgün"],
     "teşekkür": ["teşekkür", "sağ ol"],
     "kim": ["kimsin", "nesin", "adın ne"],
-    "ne yapabilirsin": ["ne yapabilirsin", "ne yaparsın", "yeteneklerin neles"]
+    "ne yapabilirsin": ["ne yapabilirsin", "ne yaparsın", "yeteneklerin neler"]
 }
 
 EGITIM_KELIMELER = ["nedir", "anlat", "açıkla", "konu", "ders", "matematik", "fen", "türkçe", "sosyal", "ingilizce", "zamir", "zarf", "fiil"]
@@ -95,21 +97,54 @@ def tavily_ara(soru):
                     temiz.append(r)
             if not temiz:
                 return None
-            # Sonuçları biçimlendir (başlık + içerik)
+            # Sonuçları birleştir (başlık + içerik)
             metin = ""
             for r in temiz:
-                metin += f"**{r['title']}**\n{r['content']}\n\n"
-            return metin[:3000]
+                metin += f"{r['title']}\n{r['content']}\n\n"
+            return metin[:3500]
         return None
     except Exception as e:
         st.error(f"🔍 Tavily hatası: {e}")
+        return None
+
+# --------------------------------------------------------------
+# OPENROUTER DÜZENLEME
+# --------------------------------------------------------------
+def openrouter_duzenle(soru, ham_metin):
+    try:
+        response = requests.post(
+            url="https://openrouter.ai/api/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": "mistralai/mistral-7b-instruct:free",
+                "messages": [
+                    {"role": "system", "content": "Sen 7. sınıf öğrencilerine ders anlatan bir eğitim asistanısın. Verilen metne göre soruyu cevapla. Kurallar: Sade, anlaşılır Türkçe kullan. Madde işaretleri ve örneklerle anlat. PDF, site adı, 'kaynak', 'tıkla' gibi ifadeleri KESİNLİKLE YAZMA. Spor örneği verme. Gereksiz tekrarları çıkar."},
+                    {"role": "user", "content": f"Soru: {soru}\n\nHam metin:\n{ham_metin}\n\nYukarıdaki metne göre düzenli bir ders anlatımı hazırla."}
+                ],
+                "max_tokens": 700,
+                "temperature": 0.3
+            },
+            timeout=15
+        )
+        response.raise_for_status()
+        return response.json()['choices'][0]['message']['content'].strip()
+    except Exception as e:
+        st.error(f"🤖 OpenRouter düzenleme hatası: {e}")
         return None
 
 def cevap_uret(soru):
     ham = tavily_ara(soru)
     if not ham:
         return "🔍 Üzgünüm, bu konuda güvenilir bir bilgi bulamadım. Lütfen farklı bir soru sor."
-    return ham
+    duzenli = openrouter_duzenle(soru, ham)
+    if duzenli:
+        return duzenli
+    else:
+        # OpenRouter çalışmazsa ham sonuçları göster (düzensiz ama bilgi var)
+        return f"⚠️ Düzenleme yapılamadı, ham sonuçlar:\n\n{ham[:2000]}"
 
 # --------------------------------------------------------------
 # SOHBET YÖNETİMİ (JSON)
@@ -184,7 +219,7 @@ with st.sidebar:
                 sohbetleri_kaydet(st.session_state.sohbetler)
                 st.rerun()
     st.markdown("---")
-    st.caption("🔍 Tavily ile güvenilir internet araması")
+    st.caption("🔍 Tavily + OpenRouter ile düzenli ders anlatımı")
     if st.session_state.kullanici_adi:
         st.markdown(f"<div style='text-align:center;margin-top:20px;padding:10px;background:rgba(102,126,234,0.2);border-radius:15px;'>👤 {st.session_state.kullanici_adi}</div>", unsafe_allow_html=True)
 
@@ -211,7 +246,7 @@ if st.session_state.isim_bekleniyor:
 # --------------------------------------------------------------
 ad = st.session_state.kullanici_adi or "Öğrenci"
 st.markdown(f'<div class="ana-baslik">🤖 Merhaba, {ad}!</div>', unsafe_allow_html=True)
-st.markdown('<div class="ana-alt">NumBot | Tavily ile Gerçek Zamanlı Bilgi</div>', unsafe_allow_html=True)
+st.markdown('<div class="ana-alt">NumBot | Tavily ile Araştırır, OpenRouter ile Düzenli Anlatır</div>', unsafe_allow_html=True)
 
 sohbet = aktif_sohbet()
 if sohbet is None:
@@ -241,7 +276,7 @@ else:
 
             if tur == "egitim":
                 st.session_state.disi_sayac = 0
-                with st.spinner("🔍 NumBot internette güvenilir kaynakları tarıyor..."):
+                with st.spinner("🔍 NumBot internette araştırıp düzenli ders anlatımı hazırlıyor..."):
                     cevap = cevap_uret(msg)
                 sohbet["mesajlar"].append({"rol": "asistan", "icerik": cevap, "tur": "egitim"})
                 sohbetleri_kaydet(st.session_state.sohbetler)
