@@ -4,13 +4,11 @@ import json
 import os
 import random
 from tavily import TavilyClient
-import cohere
 
 # --------------------------------------------------------------
-# API ANAHTARLARI (Streamlit Cloud Secrets)
+# TAVILY API ANAHTARI (Streamlit Cloud Secrets)
 # --------------------------------------------------------------
 tavily = TavilyClient(api_key=st.secrets["TAVILY_API_KEY"])
-co = cohere.Client(st.secrets["COHERE_API_KEY"])
 
 st.set_page_config(page_title="NumBot - 7. Sınıf Eğitim Asistanı", page_icon="🤖", layout="wide")
 
@@ -43,7 +41,7 @@ DIYALOG_KALIPLARI = {
     "kötü": ["😔 Üzgünüm... Birlikte çalışalım, daha iyi hissedersin.", "💪 Geçer, merak etme!"],
     "teşekkür": ["🤗 Rica ederim! Başka sorun olursa buradayım.", "💖 Ne demek!"],
     "kim": ["🤖 Ben NumBot! 7. sınıf yapay zeka eğitim asistanın.", "🧠 NumBot - eğitim asistanın!"],
-    "ne yapabilirsin": ["🔍 Tavily ile araştırır, Cohere ile özetlerim.", "📚 7. sınıf tüm derslerde yardımcı olurum."],
+    "ne yapabilirsin": ["🔍 Tavily ile internette güvenilir kaynakları tarar, sana özet sunarım.", "📚 7. sınıf tüm derslerde yardımcı olurum."],
     "default": ["💭 Ders sorusu sorabilir misin? İnternette araştırayım.", "📖 Bir konuyu sana anlatmamı ister misin?"]
 }
 
@@ -75,7 +73,7 @@ def diyalog_cevap(tur):
 # --------------------------------------------------------------
 # SPOR FİLTRESİ
 # --------------------------------------------------------------
-SPOR_KELIMELER = ["nba", "futbol", "basketbol", "maç", "takım", "lig", "şampiyon", "premier league", "spor", "gol", "galatasaray", "fenerbahçe", "beşiktaş"]
+SPOR_KELIMELER = ["nba", "futbol", "basketbol", "maç", "takım", "lig", "şampiyon", "premier league", "spor", "gol", "galatasaray", "fenerbahçe", "beşiktaş", "trabzonspor"]
 
 def spor_icerik_mi(icerik):
     icerik_lower = icerik.lower()
@@ -85,67 +83,51 @@ def spor_icerik_mi(icerik):
     return False
 
 # --------------------------------------------------------------
-# TAVILY ARAMA
+# TAVILY ARAMA + TEMİZLEME
 # --------------------------------------------------------------
 def tavily_ara(soru):
     try:
         response = tavily.search(query=soru, search_depth="basic", max_results=4)
         if response and response.get('results'):
-            temiz = []
+            temiz_sonuclar = []
             for r in response['results']:
                 if not spor_icerik_mi(r.get('content', '')):
-                    temiz.append(r['content'])
-            if not temiz:
+                    temiz_sonuclar.append(r)
+            if not temiz_sonuclar:
                 return None
-            return "\n\n".join(temiz)[:3000]
+            # Sonuçları biçimlendir (başlık + içerik)
+            metin = ""
+            for r in temiz_sonuclar:
+                metin += f"**{r['title']}**\n{r['content']}\n\n"
+            return metin[:3000]
         return None
     except Exception as e:
         st.error(f"🔍 Tavily hatası: {e}")
         return None
 
-# --------------------------------------------------------------
-# COHERE ÖZETLEME
-# --------------------------------------------------------------
-def cohere_ozetle(soru, ham_metin):
-    try:
-        prompt = f"""Sen 7. sınıf öğrencilerine ders anlatan bir eğitim asistanısın.
-Aşağıdaki ham arama sonuçlarını kullanarak soruyu cevapla.
-Kurallar:
-- Sade, anlaşılır Türkçe kullan.
-- Madde işaretleri (•) ile örnekler ver.
-- Spor örneklerinden kaçın.
-- Gereksiz tekrarları çıkar.
-- Cevabı en fazla 500 kelimede tut.
-
-Soru: {soru}
-
-Ham metin:
-{ham_metin}
-
-Özet ders anlatımı:"""
-        response = co.generate(
-            model='command-xlarge-nightly',  # ücretsiz model
-            prompt=prompt,
-            max_tokens=600,
-            temperature=0.3
-        )
-        return response.generations[0].text.strip()
-    except Exception as e:
-        st.error(f"🤖 Cohere özetleme hatası: {e}")
-        return None
+def temizle(ham_metin):
+    """Ham metni daha okunabilir hale getirir, PDF ibarelerini, kesik satırları temizler."""
+    satirlar = ham_metin.split("\n")
+    temiz_satirlar = []
+    for satir in satirlar:
+        satir = satir.strip()
+        if not satir or len(satir) < 15:
+            continue
+        if "PDF" in satir or "|" in satir or "#" in satir or "http" in satir:
+            continue
+        if satir.startswith("*") or satir.startswith("-"):
+            satir = satir[1:].strip()
+        temiz_satirlar.append(satir)
+    if not temiz_satirlar:
+        return ham_metin[:500]
+    return "\n".join(temiz_satirlar[:12])
 
 def cevap_uret(soru):
     ham = tavily_ara(soru)
     if not ham:
         return "🔍 Üzgünüm, bu konuda güvenilir bir bilgi bulamadım. Lütfen farklı bir soru sor."
-    ozet = cohere_ozetle(soru, ham)
-    if ozet:
-        return ozet
-    else:
-        # Cohere çalışmazsa ham metni temizle
-        satirlar = ham.split("\n")
-        temiz = [s for s in satirlar if len(s) > 20 and "PDF" not in s and "|" not in s]
-        return "\n".join(temiz[:10])
+    temizlenmis = temizle(ham)
+    return temizlenmis
 
 # --------------------------------------------------------------
 # SOHBET YÖNETİMİ (JSON)
@@ -220,7 +202,7 @@ with st.sidebar:
                 sohbetleri_kaydet(st.session_state.sohbetler)
                 st.rerun()
     st.markdown("---")
-    st.caption("🔍 Tavily + Cohere ile özetli ders anlatımı")
+    st.caption("🔍 Tavily ile güvenilir internet araması")
     if st.session_state.kullanici_adi:
         st.markdown(f"<div style='text-align:center;margin-top:20px;padding:10px;background:rgba(102,126,234,0.2);border-radius:15px;'>👤 {st.session_state.kullanici_adi}</div>", unsafe_allow_html=True)
 
@@ -247,7 +229,7 @@ if st.session_state.isim_bekleniyor:
 # --------------------------------------------------------------
 ad = st.session_state.kullanici_adi or "Öğrenci"
 st.markdown(f'<div class="ana-baslik">🤖 Merhaba, {ad}!</div>', unsafe_allow_html=True)
-st.markdown('<div class="ana-alt">NumBot | Tavily ile Araştırır, Cohere ile Özetler</div>', unsafe_allow_html=True)
+st.markdown('<div class="ana-alt">NumBot | Tavily ile Gerçek Zamanlı Bilgi (Düzenlenmiş)</div>', unsafe_allow_html=True)
 
 sohbet = aktif_sohbet()
 if sohbet is None:
@@ -277,7 +259,7 @@ else:
 
             if tur == "egitim":
                 st.session_state.disi_sayac = 0
-                with st.spinner("🔍 NumBot internette araştırıp özetliyor..."):
+                with st.spinner("🔍 NumBot internette güvenilir kaynakları tarıyor..."):
                     cevap = cevap_uret(msg)
                 sohbet["mesajlar"].append({"rol": "asistan", "icerik": cevap, "tur": "egitim"})
                 sohbetleri_kaydet(st.session_state.sohbetler)
