@@ -78,20 +78,25 @@ def diyalog_cevap(tur):
     return random.choice(DIYALOG_KALIPLARI.get(anahtar, DIYALOG_KALIPLARI["default"]))
 
 # --------------------------------------------------------------
-# TAVILY ARAMA (SADECE GÜZEL SİTELER)
+# TAVILY ARAMA (SADECE GÜZEL SİTELER, PDF ve YOUTUBE ENGELLİ)
 # --------------------------------------------------------------
 def tavily_ara(soru):
     try:
         sorgu = f"{soru} 7 sınıf konu anlatımı"
-        response = tavily.search(query=sorgu, search_depth="basic", max_results=4, include_domains=GUZEL_SITELER)
+        response = tavily.search(query=sorgu, search_depth="basic", max_results=5, include_domains=GUZEL_SITELER)
         if response and response.get('results'):
             metin = ""
             for r in response['results']:
+                url = r.get('url', '').lower()
+                # PDF ve YouTube içeren sonuçları atla
+                if '.pdf' in url or 'youtube.com' in url or 'youtu.be' in url:
+                    continue
                 baslik = r.get('title', '')
                 icerik = r.get('content', '')
+                # Gereksiz karakterleri temizle
                 icerik = re.sub(r'\s+', ' ', icerik)
                 icerik = re.sub(r'[|*#]', '', icerik)
-                icerik = icerik.replace('PDF', '').strip()
+                icerik = icerik.replace('PDF', '').replace('https://', '').replace('http://', '').strip()
                 if len(icerik) > 50:
                     metin += f"**{baslik}**\n{icerik}\n\n"
             return metin[:3000] if metin else None
