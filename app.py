@@ -84,28 +84,42 @@ def spor_icerik_mi(icerik):
     return False
 
 # --------------------------------------------------------------
-# TAVILY ARAMA + TEMİZLEME
+# TAVILY ARAMA + GELİŞMİŞ TEMİZLEME
 # --------------------------------------------------------------
+def temizle_metin(metin):
+    # Fazla boşlukları temizle
+    metin = re.sub(r'\s+', ' ', metin)
+    # PDF, |, *, # gibi karakterleri temizle
+    metin = re.sub(r'[|*#]', '', metin)
+    metin = metin.replace('PDF', '').replace('http', '').strip()
+    # Cümleleri nokta ve büyük harfe göre ayır, kesik cümleleri at
+    cumleler = re.split(r'(?<=[.!?])\s+', metin)
+    temiz_cumleler = []
+    for c in cumleler:
+        c = c.strip()
+        if len(c) > 30 and c[0].isupper():
+            temiz_cumleler.append(c)
+    if not temiz_cumleler:
+        return metin[:300]
+    return ' '.join(temiz_cumleler[:3])  # ilk 3 anlamlı cümle
+
 def tavily_ara(soru):
     try:
-        response = tavily.search(query=soru, search_depth="basic", max_results=5)
+        response = tavily.search(query=soru, search_depth="basic", max_results=4)
         if response and response.get('results'):
             temiz_sonuclar = []
             for r in response['results']:
                 if not spor_icerik_mi(r.get('content', '')):
-                    # Başlık ve içeriği al
                     baslik = r.get('title', '')
                     icerik = r.get('content', '')
-                    # Gereksiz karakterleri temizle
-                    icerik = re.sub(r'\s+', ' ', icerik)
-                    icerik = re.sub(r'[|*#]', '', icerik)
-                    icerik = icerik.replace('PDF', '').strip()
-                    if len(icerik) > 50:
+                    if not icerik or len(icerik) < 50:
+                        continue
+                    icerik = temizle_metin(icerik)
+                    if len(icerik) > 40:
                         temiz_sonuclar.append(f"**{baslik}**\n{icerik}")
             if not temiz_sonuclar:
                 return None
-            # Her sonucu ayrı bir paragraf olarak birleştir
-            return "\n\n".join(temiz_sonuclar[:4])
+            return "\n\n".join(temiz_sonuclar[:3])
         return None
     except Exception as e:
         st.error(f"🔍 Tavily hatası: {e}")
@@ -190,7 +204,7 @@ with st.sidebar:
                 sohbetleri_kaydet(st.session_state.sohbetler)
                 st.rerun()
     st.markdown("---")
-    st.caption("🔍 Tavily ile güvenilir internet araması (temizlenmiş)")
+    st.caption("🔍 Tavily ile güvenilir internet araması (gelişmiş temizlik)")
     if st.session_state.kullanici_adi:
         st.markdown(f"<div style='text-align:center;margin-top:20px;padding:10px;background:rgba(102,126,234,0.2);border-radius:15px;'>👤 {st.session_state.kullanici_adi}</div>", unsafe_allow_html=True)
 
@@ -217,7 +231,7 @@ if st.session_state.isim_bekleniyor:
 # --------------------------------------------------------------
 ad = st.session_state.kullanici_adi or "Öğrenci"
 st.markdown(f'<div class="ana-baslik">🤖 Merhaba, {ad}!</div>', unsafe_allow_html=True)
-st.markdown('<div class="ana-alt">NumBot | Tavily ile Gerçek Zamanlı Bilgi (Temizlenmiş)</div>', unsafe_allow_html=True)
+st.markdown('<div class="ana-alt">NumBot | Tavily ile Gerçek Zamanlı Bilgi (Gelişmiş Temizlik)</div>', unsafe_allow_html=True)
 
 sohbet = aktif_sohbet()
 if sohbet is None:
@@ -256,7 +270,11 @@ else:
                 cevap = diyalog_cevap(tur)
                 uyari = None
                 if st.session_state.disi_sayac >= 3:
-                    uyari = random.choice(["💡 Sohbet güzel ama ders sorusu da sorabilirsin!", "📖 Bir ders sorusu sormaya ne dersin?"])
+                    uyari = random.choice([
+                        "💡 Sohbet güzel ama biraz ders sorusu soralım mı?",
+                        "📖 Ders dışına çıktık, hadi bir soru sor.",
+                        "🎯 NumBot olarak asıl görevim derslerinde sana yardımcı olmak!"
+                    ])
                     st.session_state.disi_sayac = 0
                 sohbet["mesajlar"].append({"rol": "asistan", "icerik": cevap, "tur": "diyalog", "uyari": uyari})
                 sohbetleri_kaydet(st.session_state.sohbetler)
