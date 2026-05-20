@@ -86,22 +86,27 @@ def spor_icerik_mi(icerik):
 # --------------------------------------------------------------
 # TAVILY ARAMA + GELİŞMİŞ TEMİZLEME
 # --------------------------------------------------------------
-def temizle_metin(metin):
-    # Fazla boşlukları temizle
+def temizle(metin):
+    """Tam cümleleri koruyan, gereksiz ifadeleri temizleyen fonksiyon"""
+    if not metin:
+        return ""
+    # Satır sonlarını düzelt, çoklu boşlukları tek boşluğa çevir
     metin = re.sub(r'\s+', ' ', metin)
-    # PDF, |, *, # gibi karakterleri temizle
-    metin = re.sub(r'[|*#]', '', metin)
-    metin = metin.replace('PDF', '').replace('http', '').strip()
-    # Cümleleri nokta ve büyük harfe göre ayır, kesik cümleleri at
+    # PDF, http, www, gereksiz karakterleri temizle
+    metin = re.sub(r'\bPDF\b|\bhttp\S+|\bwww\S+|[|*#]', '', metin, flags=re.IGNORECASE)
+    # Cümleleri ayır (nokta, ünlem, soru işareti)
     cumleler = re.split(r'(?<=[.!?])\s+', metin)
     temiz_cumleler = []
     for c in cumleler:
         c = c.strip()
-        if len(c) > 30 and c[0].isupper():
-            temiz_cumleler.append(c)
-    if not temiz_cumleler:
-        return metin[:300]
-    return ' '.join(temiz_cumleler[:3])  # ilk 3 anlamlı cümle
+        # Kısa veya anlamsız cümleleri at
+        if len(c) < 20 or "reklam" in c.lower() or "cookie" in c.lower():
+            continue
+        # Cümlenin ilk harfini büyük yap
+        if c:
+            c = c[0].upper() + c[1:] if len(c) > 1 else c.upper()
+        temiz_cumleler.append(c)
+    return " ".join(temiz_cumleler)
 
 def tavily_ara(soru):
     try:
@@ -112,10 +117,9 @@ def tavily_ara(soru):
                 if not spor_icerik_mi(r.get('content', '')):
                     baslik = r.get('title', '')
                     icerik = r.get('content', '')
-                    if not icerik or len(icerik) < 50:
-                        continue
-                    icerik = temizle_metin(icerik)
-                    if len(icerik) > 40:
+                    # İçeriği temizle
+                    icerik = temizle(icerik)
+                    if len(icerik) > 50:
                         temiz_sonuclar.append(f"**{baslik}**\n{icerik}")
             if not temiz_sonuclar:
                 return None
@@ -261,7 +265,7 @@ else:
 
             if tur == "egitim":
                 st.session_state.disi_sayac = 0
-                with st.spinner("🔍 NumBot internette güvenilir kaynakları tarıyor..."):
+                with st.spinner("🔍 NumBot internette güvenilir kaynakları tarıyor ve temizliyor..."):
                     cevap = cevap_uret(msg)
                 sohbet["mesajlar"].append({"rol": "asistan", "icerik": cevap, "tur": "egitim"})
                 sohbetleri_kaydet(st.session_state.sohbetler)
