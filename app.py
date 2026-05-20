@@ -3,6 +3,7 @@ import time
 import json
 import os
 import random
+import re
 from tavily import TavilyClient
 
 # --------------------------------------------------------------
@@ -41,7 +42,7 @@ DIYALOG_KALIPLARI = {
     "kötü": ["😔 Üzgünüm... Birlikte çalışalım, daha iyi hissedersin.", "💪 Geçer, merak etme!"],
     "teşekkür": ["🤗 Rica ederim! Başka sorun olursa buradayım.", "💖 Ne demek!"],
     "kim": ["🤖 Ben NumBot! 7. sınıf yapay zeka eğitim asistanın.", "🧠 NumBot - eğitim asistanın!"],
-    "ne yapabilirsin": ["🔍 Tavily ile internette güvenilir kaynakları tarar, sana özet sunarım.", "📚 7. sınıf tüm derslerde yardımcı olurum."],
+    "ne yapabilirsin": ["🔍 Tavily ile internette güvenilir kaynakları tarar, sana düzenli özet sunarım.", "📚 7. sınıf tüm derslerde yardımcı olurum."],
     "default": ["💭 Ders sorusu sorabilir misin? İnternette araştırayım.", "📖 Bir konuyu sana anlatmamı ister misin?"]
 }
 
@@ -87,47 +88,34 @@ def spor_icerik_mi(icerik):
 # --------------------------------------------------------------
 def tavily_ara(soru):
     try:
-        response = tavily.search(query=soru, search_depth="basic", max_results=4)
+        response = tavily.search(query=soru, search_depth="basic", max_results=5)
         if response and response.get('results'):
             temiz_sonuclar = []
             for r in response['results']:
                 if not spor_icerik_mi(r.get('content', '')):
-                    temiz_sonuclar.append(r)
+                    # Başlık ve içeriği al
+                    baslik = r.get('title', '')
+                    icerik = r.get('content', '')
+                    # Gereksiz karakterleri temizle
+                    icerik = re.sub(r'\s+', ' ', icerik)
+                    icerik = re.sub(r'[|*#]', '', icerik)
+                    icerik = icerik.replace('PDF', '').strip()
+                    if len(icerik) > 50:
+                        temiz_sonuclar.append(f"**{baslik}**\n{icerik}")
             if not temiz_sonuclar:
                 return None
-            # Sonuçları biçimlendir (başlık + içerik)
-            metin = ""
-            for r in temiz_sonuclar:
-                metin += f"**{r['title']}**\n{r['content']}\n\n"
-            return metin[:3000]
+            # Her sonucu ayrı bir paragraf olarak birleştir
+            return "\n\n".join(temiz_sonuclar[:4])
         return None
     except Exception as e:
         st.error(f"🔍 Tavily hatası: {e}")
         return None
 
-def temizle(ham_metin):
-    """Ham metni daha okunabilir hale getirir, PDF ibarelerini, kesik satırları temizler."""
-    satirlar = ham_metin.split("\n")
-    temiz_satirlar = []
-    for satir in satirlar:
-        satir = satir.strip()
-        if not satir or len(satir) < 15:
-            continue
-        if "PDF" in satir or "|" in satir or "#" in satir or "http" in satir:
-            continue
-        if satir.startswith("*") or satir.startswith("-"):
-            satir = satir[1:].strip()
-        temiz_satirlar.append(satir)
-    if not temiz_satirlar:
-        return ham_metin[:500]
-    return "\n".join(temiz_satirlar[:12])
-
 def cevap_uret(soru):
     ham = tavily_ara(soru)
     if not ham:
         return "🔍 Üzgünüm, bu konuda güvenilir bir bilgi bulamadım. Lütfen farklı bir soru sor."
-    temizlenmis = temizle(ham)
-    return temizlenmis
+    return ham
 
 # --------------------------------------------------------------
 # SOHBET YÖNETİMİ (JSON)
@@ -202,7 +190,7 @@ with st.sidebar:
                 sohbetleri_kaydet(st.session_state.sohbetler)
                 st.rerun()
     st.markdown("---")
-    st.caption("🔍 Tavily ile güvenilir internet araması")
+    st.caption("🔍 Tavily ile güvenilir internet araması (temizlenmiş)")
     if st.session_state.kullanici_adi:
         st.markdown(f"<div style='text-align:center;margin-top:20px;padding:10px;background:rgba(102,126,234,0.2);border-radius:15px;'>👤 {st.session_state.kullanici_adi}</div>", unsafe_allow_html=True)
 
@@ -229,7 +217,7 @@ if st.session_state.isim_bekleniyor:
 # --------------------------------------------------------------
 ad = st.session_state.kullanici_adi or "Öğrenci"
 st.markdown(f'<div class="ana-baslik">🤖 Merhaba, {ad}!</div>', unsafe_allow_html=True)
-st.markdown('<div class="ana-alt">NumBot | Tavily ile Gerçek Zamanlı Bilgi (Düzenlenmiş)</div>', unsafe_allow_html=True)
+st.markdown('<div class="ana-alt">NumBot | Tavily ile Gerçek Zamanlı Bilgi (Temizlenmiş)</div>', unsafe_allow_html=True)
 
 sohbet = aktif_sohbet()
 if sohbet is None:
