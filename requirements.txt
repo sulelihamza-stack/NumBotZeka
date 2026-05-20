@@ -1,3 +1,2 @@
 streamlit
 tavily-python
-requests
