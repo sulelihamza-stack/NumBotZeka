@@ -7,15 +7,13 @@ import re
 from tavily import TavilyClient
 
 # --------------------------------------------------------------
-# TAVILY API ANAHTARI (Streamlit Cloud Secrets)
+# TAVILY API (Streamlit Cloud Secrets)
 # --------------------------------------------------------------
 tavily = TavilyClient(api_key=st.secrets["TAVILY_API_KEY"])
 
 st.set_page_config(page_title="NumBot - 7. Sınıf Eğitim Asistanı", page_icon="🤖", layout="wide")
 
-# --------------------------------------------------------------
-# SİYAH TEMA
-# --------------------------------------------------------------
+# SİYAH TEMA (kısa)
 st.markdown("""
 <style>
 .stApp, [data-testid="stAppViewContainer"] { background: #000000 !important; }
@@ -33,6 +31,14 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --------------------------------------------------------------
+# GÜVENİLİR SİTELER (SADECE BUNLAR)
+# --------------------------------------------------------------
+GUZEL_SITELER = [
+    "eba.gov.tr", "meb.gov.tr", "odsgm.meb.gov.tr",
+    "derslig.com", "turkcedersi.net", "dilbilgisi.net"
+]
+
+# --------------------------------------------------------------
 # DİYALOG SİSTEMİ
 # --------------------------------------------------------------
 DIYALOG_KALIPLARI = {
@@ -42,7 +48,7 @@ DIYALOG_KALIPLARI = {
     "kötü": ["😔 Üzgünüm... Birlikte çalışalım, daha iyi hissedersin.", "💪 Geçer, merak etme!"],
     "teşekkür": ["🤗 Rica ederim! Başka sorun olursa buradayım.", "💖 Ne demek!"],
     "kim": ["🤖 Ben NumBot! 7. sınıf yapay zeka eğitim asistanın.", "🧠 NumBot - eğitim asistanın!"],
-    "ne yapabilirsin": ["🔍 Tavily ile internette güvenilir kaynakları tarar, sana düzenli özet sunarım.", "📚 7. sınıf tüm derslerde yardımcı olurum."],
+    "ne yapabilirsin": ["🔍 Sadece güvenilir eğitim sitelerinde (MEB, EBA, Derslig) araştırma yaparım.", "📚 7. sınıf tüm derslerde yardımcı olurum."],
     "default": ["💭 Ders sorusu sorabilir misin? İnternette araştırayım.", "📖 Bir konuyu sana anlatmamı ister misin?"]
 }
 
@@ -72,48 +78,32 @@ def diyalog_cevap(tur):
     return random.choice(DIYALOG_KALIPLARI.get(anahtar, DIYALOG_KALIPLARI["default"]))
 
 # --------------------------------------------------------------
-# SPOR FİLTRESİ
-# --------------------------------------------------------------
-SPOR_KELIMELER = ["nba", "futbol", "basketbol", "maç", "takım", "lig", "şampiyon", "premier league", "spor", "gol", "galatasaray", "fenerbahçe", "beşiktaş"]
-
-def spor_icerik_mi(icerik):
-    icerik_lower = icerik.lower()
-    for kelime in SPOR_KELIMELER:
-        if kelime in icerik_lower:
-            return True
-    return False
-
-# --------------------------------------------------------------
-# TAVILY ARAMA + TEMİZLEME (OpenRouter yok)
+# TAVILY ARAMA (SADECE GÜZEL SİTELER)
 # --------------------------------------------------------------
 def tavily_ara(soru):
     try:
-        response = tavily.search(query=soru, search_depth="basic", max_results=5)
+        sorgu = f"{soru} 7 sınıf konu anlatımı"
+        response = tavily.search(query=sorgu, search_depth="basic", max_results=4, include_domains=GUZEL_SITELER)
         if response and response.get('results'):
-            temiz_sonuclar = []
+            metin = ""
             for r in response['results']:
-                if spor_icerik_mi(r.get('content', '')):
-                    continue
                 baslik = r.get('title', '')
                 icerik = r.get('content', '')
-                # Temizlik: fazla boşluk, PDF, özel karakterler
                 icerik = re.sub(r'\s+', ' ', icerik)
                 icerik = re.sub(r'[|*#]', '', icerik)
-                icerik = icerik.replace('PDF', '').replace('http', '').strip()
-                if len(icerik) > 40:   # anlamlı uzunluk
-                    temiz_sonuclar.append(f"**{baslik}**\n{icerik}")
-            if not temiz_sonuclar:
-                return None
-            return "\n\n".join(temiz_sonuclar[:4])
+                icerik = icerik.replace('PDF', '').strip()
+                if len(icerik) > 50:
+                    metin += f"**{baslik}**\n{icerik}\n\n"
+            return metin[:3000] if metin else None
         return None
     except Exception as e:
-        st.error(f"🔍 Tavily hatası: {e}")
+        st.error(f"🔍 Arama hatası: {e}")
         return None
 
 def cevap_uret(soru):
     ham = tavily_ara(soru)
     if not ham:
-        return "🔍 Üzgünüm, bu konuda güvenilir bir bilgi bulamadım. Lütfen farklı bir soru sor."
+        return "🔍 Güvenilir eğitim sitelerinde (MEB, EBA, Derslig) bu konuda bilgi bulamadım. Lütfen farklı bir soru sor."
     return ham
 
 # --------------------------------------------------------------
@@ -189,7 +179,7 @@ with st.sidebar:
                 sohbetleri_kaydet(st.session_state.sohbetler)
                 st.rerun()
     st.markdown("---")
-    st.caption("🔍 Tavily ile güvenilir internet araması (temizlenmiş)")
+    st.caption("🔍 Sadece güvenilir eğitim siteleri (MEB, EBA, Derslig)")
     if st.session_state.kullanici_adi:
         st.markdown(f"<div style='text-align:center;margin-top:20px;padding:10px;background:rgba(102,126,234,0.2);border-radius:15px;'>👤 {st.session_state.kullanici_adi}</div>", unsafe_allow_html=True)
 
@@ -212,11 +202,11 @@ if st.session_state.isim_bekleniyor:
     st.stop()
 
 # --------------------------------------------------------------
-# ANA ALAN – ders dışı uyarısı mevcut
+# ANA ALAN
 # --------------------------------------------------------------
 ad = st.session_state.kullanici_adi or "Öğrenci"
 st.markdown(f'<div class="ana-baslik">🤖 Merhaba, {ad}!</div>', unsafe_allow_html=True)
-st.markdown('<div class="ana-alt">NumBot | Tavily ile Gerçek Zamanlı Bilgi (Temizlenmiş)</div>', unsafe_allow_html=True)
+st.markdown('<div class="ana-alt">NumBot | Sadece Güvenilir Eğitim Sitelerinde Arama (MEB, EBA, Derslig)</div>', unsafe_allow_html=True)
 
 sohbet = aktif_sohbet()
 if sohbet is None:
@@ -246,7 +236,7 @@ else:
 
             if tur == "egitim":
                 st.session_state.disi_sayac = 0
-                with st.spinner("🔍 NumBot internette güvenilir kaynakları tarıyor..."):
+                with st.spinner("🔍 NumBot güvenilir eğitim sitelerinde araştırıyor..."):
                     cevap = cevap_uret(msg)
                 sohbet["mesajlar"].append({"rol": "asistan", "icerik": cevap, "tur": "egitim"})
                 sohbetleri_kaydet(st.session_state.sohbetler)
@@ -255,11 +245,7 @@ else:
                 cevap = diyalog_cevap(tur)
                 uyari = None
                 if st.session_state.disi_sayac >= 3:
-                    uyari = random.choice([
-                        "💡 Sohbet güzel ama biraz ders sorusu soralım mı?",
-                        "📖 Ders dışına çıktık, hadi bir soru sor.",
-                        "🎯 NumBot olarak asıl görevim derslerinde sana yardımcı olmak!"
-                    ])
+                    uyari = random.choice(["💡 Sohbet güzel ama biraz ders sorusu soralım mı?", "📖 Ders dışına çıktık, hadi bir soru sor."])
                     st.session_state.disi_sayac = 0
                 sohbet["mesajlar"].append({"rol": "asistan", "icerik": cevap, "tur": "diyalog", "uyari": uyari})
                 sohbetleri_kaydet(st.session_state.sohbetler)
